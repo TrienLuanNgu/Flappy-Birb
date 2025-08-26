@@ -50,7 +50,7 @@ type Key = "Space";
 
 // State processing
 
-type State = Readonly<{
+type State = Readonly<{ 
     gameEnd: boolean;
 }>;
 
