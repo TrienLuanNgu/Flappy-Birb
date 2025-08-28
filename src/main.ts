@@ -12,6 +12,7 @@
  * Document your code!
  */
 
+import { eventNames } from "process";
 import "./style.css";
 
 import {
@@ -21,9 +22,12 @@ import {
     fromEvent,
     interval,
     map,
+    merge,
     scan,
+    startWith,
     switchMap,
     take,
+    tap,
 } from "rxjs";
 import { fromFetch } from "rxjs/fetch";
 
@@ -46,16 +50,26 @@ const Constants = {
 
 // User input
 
-type Key = "Space";
+type Key = "Space" | "KeyR";
+
+type Event = 'keyDown' | 'keyUp';
 
 // State processing
 
-type State = Readonly<{ 
+type State = Readonly<{
     gameEnd: boolean;
+    birdX: number;
+    birbY: number;
+    birbVelocity: number;
+    birbLive: number;
 }>;
 
 const initialState: State = {
     gameEnd: false,
+    birdX: Viewport.CANVAS_WIDTH / 2,
+    birbY: Viewport.CANVAS_HEIGHT / 2,
+    birbVelocity: 10,
+    birbLive: 3,
 };
 
 /**
@@ -92,6 +106,22 @@ const show = (elem: SVGElement): void => {
 const hide = (elem: SVGElement): void => {
     elem.setAttribute("visibility", "hidden");
 };
+
+/**
+ * 
+ * @param eventName 
+ * @param k 
+ * @param result 
+ * @returns 
+ */
+const observeKey = <T>(eventName: Event, k: Key, result: ()=> T)=>
+    fromEvent<KeyboardEvent>(document,eventName)
+    .pipe(
+        filter(({code})=>code === k),
+        filter(({repeat})=>!repeat),
+        map(result))
+
+// const jump = observeKey('keyDown', "Space",());
 
 /**
  * Creates an SVG element with the given properties.
@@ -184,7 +214,47 @@ export const state$ = (csvContents: string): Observable<State> => {
     /** Determines the rate of time steps */
     const tick$ = interval(Constants.TICK_RATE_MS);
 
-    return tick$.pipe(scan((s: State) => ({ gameEnd: false }), initialState));
+    // const jump$ = fromKey("Space").pipe(
+    //     tap(ev => console.log("Space pressed", ev.code)) // <-- debug without breaking types
+    // );
+
+    const jump$ = fromKey("Space").pipe(
+        map(() => (s: State) => ({
+            ...s,
+            birbVelocity: -8 // negative velocity = jump up
+        }))
+    );
+    // jump$.pipe(tap(ev => console.log("Space pressed", ev.code))).subscribe();
+
+    // return jump$;
+
+    // return tick$.pipe(scan((s: State) => ({ gameEnd: false }), initialState));
+    // return tick$.pipe(
+    //     scan((s: State) => {
+    //         const gravity = 1.5; // adjust strength
+    //         const newVelocity = s.birbVelocity + gravity;
+    //         const newY = s.birbY + newVelocity;
+
+    //         return {
+    //         ...s,
+    //         birbVelocity: newVelocity,
+    //         birbY: newY,
+    //         };
+    //     }, initialState)
+    // );
+
+    const tickUpdate$ = tick$.pipe(
+    map(() => (s: State) => {
+            const gravity = 1.5;
+            const newVelocity = s.birbVelocity + gravity;
+            return { ...s, birbVelocity: newVelocity, birbY: s.birbY + newVelocity };
+        })
+    );
+
+    return merge(tickUpdate$, jump$).pipe(
+        scan((state, reducer) => reducer(state), initialState)
+    );
+
 };
 
 // The following simply runs your main function on window load.  Make sure to leave it in place.
