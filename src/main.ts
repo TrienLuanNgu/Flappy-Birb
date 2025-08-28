@@ -12,7 +12,6 @@
  * Document your code!
  */
 
-import { eventNames } from "process";
 import "./style.css";
 
 import {
@@ -31,43 +30,21 @@ import {
 } from "rxjs";
 import { fromFetch } from "rxjs/fetch";
 
+import * as Game from "./type";
+import type { Key, Event as InputEvent, State } from "./type";
+
 /** Constants */
 
-const Viewport = {
-    CANVAS_WIDTH: 600,
-    CANVAS_HEIGHT: 400,
-} as const;
 
-const Birb = {
-    WIDTH: 42,
-    HEIGHT: 30,
-} as const;
-
-const Constants = {
-    PIPE_WIDTH: 50,
-    TICK_RATE_MS: 500, // Might need to change this!
-} as const;
 
 // User input
 
-type Key = "Space" | "KeyR";
 
-type Event = 'keyDown' | 'keyUp';
-
-// State processing
-
-type State = Readonly<{
-    gameEnd: boolean;
-    birdX: number;
-    birbY: number;
-    birbVelocity: number;
-    birbLive: number;
-}>;
 
 const initialState: State = {
     gameEnd: false,
-    birdX: Viewport.CANVAS_WIDTH / 2,
-    birbY: Viewport.CANVAS_HEIGHT / 2,
+    birdX: Game.Viewport.CANVAS_WIDTH / 2,
+    birbY: Game.Viewport.CANVAS_HEIGHT / 2,
     birbVelocity: 10,
     birbLive: 3,
 };
@@ -157,7 +134,7 @@ const render = (): ((s: State) => void) => {
 
     svg.setAttribute(
         "viewBox",
-        `0 0 ${Viewport.CANVAS_WIDTH} ${Viewport.CANVAS_HEIGHT}`,
+        `0 0 ${Game.Viewport.CANVAS_WIDTH} ${Game.Viewport.CANVAS_HEIGHT}`,
     );
     /**
      * Renders the current state to the canvas.
@@ -170,10 +147,10 @@ const render = (): ((s: State) => void) => {
         // Add birb to the main grid canvas
         const birdImg = createSvgElement(svg.namespaceURI, "image", {
             href: "assets/birb.png",
-            x: `${Viewport.CANVAS_WIDTH * 0.3 - Birb.WIDTH / 2}`,
-            y: `${Viewport.CANVAS_HEIGHT / 2 - Birb.HEIGHT / 2}`,
-            width: `${Birb.WIDTH}`,
-            height: `${Birb.HEIGHT}`,
+            x: `${Game.Viewport.CANVAS_WIDTH * 0.3 - Game.Birb.WIDTH / 2}`,
+            y: `${Game.Viewport.CANVAS_HEIGHT / 2 - Game.Birb.HEIGHT / 2}`,
+            width: `${Game.Birb.WIDTH}`,
+            height: `${Game.Birb.HEIGHT}`,
         });
         svg.appendChild(birdImg);
 
@@ -185,7 +162,7 @@ const render = (): ((s: State) => void) => {
         const pipeTop = createSvgElement(svg.namespaceURI, "rect", {
             x: "150",
             y: "0",
-            width: `${Constants.PIPE_WIDTH}`,
+            width: `${Game.Constants.PIPE_WIDTH}`,
             height: `${pipeGapY - pipeGapHeight / 2}`,
             fill: "green",
         });
@@ -194,8 +171,8 @@ const render = (): ((s: State) => void) => {
         const pipeBottom = createSvgElement(svg.namespaceURI, "rect", {
             x: "150",
             y: `${pipeGapY + pipeGapHeight / 2}`,
-            width: `${Constants.PIPE_WIDTH}`,
-            height: `${Viewport.CANVAS_HEIGHT - (pipeGapY + pipeGapHeight / 2)}`,
+            width: `${Game.Constants.PIPE_WIDTH}`,
+            height: `${Game.Viewport.CANVAS_HEIGHT - (pipeGapY + pipeGapHeight / 2)}`,
             fill: "green",
         });
 
@@ -212,23 +189,9 @@ export const state$ = (csvContents: string): Observable<State> => {
         key$.pipe(filter(({ code }) => code === keyCode));
 
     /** Determines the rate of time steps */
-    const tick$ = interval(Constants.TICK_RATE_MS);
+    const tick$ = interval(Game.Constants.TICK_RATE_MS);
 
-    // const jump$ = fromKey("Space").pipe(
-    //     tap(ev => console.log("Space pressed", ev.code)) // <-- debug without breaking types
-    // );
-
-    const jump$ = fromKey("Space").pipe(
-        map(() => (s: State) => ({
-            ...s,
-            birbVelocity: -8 // negative velocity = jump up
-        }))
-    );
-    // jump$.pipe(tap(ev => console.log("Space pressed", ev.code))).subscribe();
-
-    // return jump$;
-
-    // return tick$.pipe(scan((s: State) => ({ gameEnd: false }), initialState));
+    return tick$.pipe(scan((s: State) => ({ gameEnd: false }), initialState));
     // return tick$.pipe(
     //     scan((s: State) => {
     //         const gravity = 1.5; // adjust strength
@@ -243,17 +206,17 @@ export const state$ = (csvContents: string): Observable<State> => {
     //     }, initialState)
     // );
 
-    const tickUpdate$ = tick$.pipe(
-    map(() => (s: State) => {
-            const gravity = 1.5;
-            const newVelocity = s.birbVelocity + gravity;
-            return { ...s, birbVelocity: newVelocity, birbY: s.birbY + newVelocity };
-        })
-    );
+    // const tickUpdate$ = tick$.pipe(
+    // map(() => (s: State) => {
+    //         const gravity = 1.5;
+    //         const newVelocity = s.birbVelocity + gravity;
+    //         return { ...s, birbVelocity: newVelocity, birbY: s.birbY + newVelocity };
+    //     })
+    // );
 
-    return merge(tickUpdate$, jump$).pipe(
-        scan((state, reducer) => reducer(state), initialState)
-    );
+    // return merge(tickUpdate$, jump$).pipe(
+    //     scan((state, reducer) => reducer(state), initialState)
+    // );
 
 };
 
