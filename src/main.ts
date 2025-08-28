@@ -19,15 +19,19 @@ import {
     Subscription,
     catchError,
     filter,
+    from,
     fromEvent,
     interval,
     map,
     merge,
+    mergeMap,
     scan,
     startWith,
     switchMap,
     take,
     tap,
+    timer,
+    zip,
 } from "rxjs";
 import { fromFetch } from "rxjs/fetch";
 
@@ -149,6 +153,10 @@ const render = (): ((s: State) => void) => {
      *
      * @param s Current state
      */
+
+        // .subscribe(word => console.log(word));
+    getPipe();
+
     const birdImg = createSvgElement(svg.namespaceURI, "image", {
         href: "assets/birb.png",
         x: `${Game.Viewport.CANVAS_WIDTH * 0.3 - Game.Birb.WIDTH / 2}`,
@@ -215,6 +223,38 @@ export const state$ = (csvContents: string): Observable<State> => {
         scan(reduceState, initialState)
     )
 };
+
+function getPipe() {
+    const { protocol, hostname, port } = new URL(import.meta.url);
+    const baseUrl = `${protocol}//${hostname}${port ? `:${port}` : ""}`;
+
+    fromFetch(`${baseUrl}/assets/map.csv`)
+        .pipe(
+            switchMap(response => {
+                if (!response.ok) throw new Error("Failed to fetch CSV");
+                return response.text();
+            }),
+            map(text =>
+                text
+                .trim()
+                .split("\n")
+                .map(line => {
+                    const [gap_y, gap_height, time] = line.split(",");
+                    return { gap: Number(gap_y), height: Number(gap_height), delay: Number(time) };
+                })
+            ),
+        
+            switchMap(rows =>
+                from(rows).pipe(
+                mergeMap(({ gap, height, delay }) =>
+                    timer(delay * 1000).pipe(
+                        map(() => [gap, height]))
+                    )
+                )
+            )
+        )
+        .subscribe(word => console.log(word));
+}
 
 
 // The following simply runs your main function on window load.  Make sure to leave it in place.
