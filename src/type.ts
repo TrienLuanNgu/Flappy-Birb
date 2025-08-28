@@ -29,3 +29,7 @@ type State = Readonly<{
     birbVelocity: number;
     birbLive: number;
 }>;
+
+interface Action{
+    apply(s:State): State;
+}
