@@ -12,8 +12,10 @@ const Birb = {
 } as const;
 
 const Constants = {
-    PIPE_WIDTH: 50,
-    TICK_RATE_MS: 500, // Might need to change this!
+    PIPE_WIDTH: 60,
+    TICK_RATE_MS: 30, // Might need to change this!
+    GRAVITY: 1.5, 
+    MAX_FALL_RATE: 18,
 } as const;
 
 type Key = "Space" | "KeyR";

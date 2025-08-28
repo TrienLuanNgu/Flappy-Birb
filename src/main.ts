@@ -33,7 +33,7 @@ import { fromFetch } from "rxjs/fetch";
 
 import * as Game from "./type";
 import type { Key, Event, State, Action} from "./type";
-import { Jump, reduceState } from "./state";
+import { Jump, reduceState, Gravity } from "./state";
 
 /** Constants */
 
@@ -101,7 +101,10 @@ const observeKey = <T>(eventName: Event, k: Key, result: ()=> T)=>
         map(result));
 
 
-const jump$ = observeKey('keydown', "Space",() => new Jump(-10));
+const jump$ = observeKey('keydown', "Space",() => new Jump(10));
+const gravity$ = interval(Game.Constants.TICK_RATE_MS).pipe(
+    map(() => new Gravity()) 
+)
 
 /**
  * Creates an SVG element with the given properties.
@@ -206,11 +209,11 @@ export const state$ = (csvContents: string): Observable<State> => {
     /** Determines the rate of time steps */
     const tick$ = interval(Game.Constants.TICK_RATE_MS);
 
-    // return tick$.pipe(scan((s: State) => ({ gameEnd: false }), initialState));
-    return jump$.pipe(
-        startWith({ apply: (s: State) => s } as Action),
-        scan((s, a) => a.apply(s), initialState)
-    );
+    const birdMovement$ = merge(jump$, gravity$);
+    return birdMovement$.pipe(
+        startWith({apply: (s:State) => s} as Action),
+        scan(reduceState, initialState)
+    )
 };
 
 
