@@ -1,5 +1,5 @@
 export {Constants, Birb, Viewport}
-export type {Key, Event, State}
+export type {Key, Event, State, Action}
 
 const Viewport = {
     CANVAS_WIDTH: 600,
@@ -18,7 +18,7 @@ const Constants = {
 
 type Key = "Space" | "KeyR";
 
-type Event = 'keyDown' | 'keyUp';
+type Event = 'keydown' | 'keyup';
 
 // State processing
 

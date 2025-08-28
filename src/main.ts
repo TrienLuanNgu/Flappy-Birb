@@ -16,6 +16,7 @@ import "./style.css";
 
 import {
     Observable,
+    Subscription,
     catchError,
     filter,
     fromEvent,
@@ -31,7 +32,8 @@ import {
 import { fromFetch } from "rxjs/fetch";
 
 import * as Game from "./type";
-import type { Key, Event as InputEvent, State } from "./type";
+import type { Key, Event, State, Action} from "./type";
+import { Jump, reduceState } from "./state";
 
 /** Constants */
 
@@ -43,8 +45,8 @@ import type { Key, Event as InputEvent, State } from "./type";
 
 const initialState: State = {
     gameEnd: false,
-    birdX: Game.Viewport.CANVAS_WIDTH / 2,
-    birbY: Game.Viewport.CANVAS_HEIGHT / 2,
+    birdX: Game.Viewport.CANVAS_WIDTH * 0.3 - Game.Birb.WIDTH / 2,
+    birbY: Game.Viewport.CANVAS_HEIGHT / 2 - Game.Birb.HEIGHT / 2,
     birbVelocity: 10,
     birbLive: 3,
 };
@@ -96,9 +98,10 @@ const observeKey = <T>(eventName: Event, k: Key, result: ()=> T)=>
     .pipe(
         filter(({code})=>code === k),
         filter(({repeat})=>!repeat),
-        map(result))
+        map(result));
 
-// const jump = observeKey('keyDown', "Space",());
+
+const jump$ = observeKey('keydown', "Space",() => new Jump(-10));
 
 /**
  * Creates an SVG element with the given properties.
@@ -143,16 +146,24 @@ const render = (): ((s: State) => void) => {
      *
      * @param s Current state
      */
+    const birdImg = createSvgElement(svg.namespaceURI, "image", {
+        href: "assets/birb.png",
+        x: `${Game.Viewport.CANVAS_WIDTH * 0.3 - Game.Birb.WIDTH / 2}`,
+        y: `${Game.Viewport.CANVAS_HEIGHT / 2 - Game.Birb.HEIGHT / 2}`,
+        width: `${Game.Birb.WIDTH}`,
+        height: `${Game.Birb.HEIGHT}`,
+    });
+    svg.appendChild(birdImg);
     return (s: State) => {
         // Add birb to the main grid canvas
-        const birdImg = createSvgElement(svg.namespaceURI, "image", {
-            href: "assets/birb.png",
-            x: `${Game.Viewport.CANVAS_WIDTH * 0.3 - Game.Birb.WIDTH / 2}`,
-            y: `${Game.Viewport.CANVAS_HEIGHT / 2 - Game.Birb.HEIGHT / 2}`,
-            width: `${Game.Birb.WIDTH}`,
-            height: `${Game.Birb.HEIGHT}`,
-        });
-        svg.appendChild(birdImg);
+        // const birdImg = createSvgElement(svg.namespaceURI, "image", {
+        //     href: "assets/birb.png",
+        //     x: `${Game.Viewport.CANVAS_WIDTH * 0.3 - Game.Birb.WIDTH / 2}`,
+        //     y: `${Game.Viewport.CANVAS_HEIGHT / 2 - Game.Birb.HEIGHT / 2}`,
+        //     width: `${Game.Birb.WIDTH}`,
+        //     height: `${Game.Birb.HEIGHT}`,
+        // });
+        // svg.appendChild(birdImg);
 
         // Draw a static pipe as a demonstration
         const pipeGapY = 200; // vertical center of the gap
@@ -178,6 +189,10 @@ const render = (): ((s: State) => void) => {
 
         svg.appendChild(pipeTop);
         svg.appendChild(pipeBottom);
+
+        birdImg.setAttribute("x", `${s.birdX - Game.Birb.WIDTH / 2}`);
+        birdImg.setAttribute("y", `${s.birbY - Game.Birb.HEIGHT / 2}`);
+
     };
 };
 
@@ -191,34 +206,13 @@ export const state$ = (csvContents: string): Observable<State> => {
     /** Determines the rate of time steps */
     const tick$ = interval(Game.Constants.TICK_RATE_MS);
 
-    return tick$.pipe(scan((s: State) => ({ gameEnd: false }), initialState));
-    // return tick$.pipe(
-    //     scan((s: State) => {
-    //         const gravity = 1.5; // adjust strength
-    //         const newVelocity = s.birbVelocity + gravity;
-    //         const newY = s.birbY + newVelocity;
-
-    //         return {
-    //         ...s,
-    //         birbVelocity: newVelocity,
-    //         birbY: newY,
-    //         };
-    //     }, initialState)
-    // );
-
-    // const tickUpdate$ = tick$.pipe(
-    // map(() => (s: State) => {
-    //         const gravity = 1.5;
-    //         const newVelocity = s.birbVelocity + gravity;
-    //         return { ...s, birbVelocity: newVelocity, birbY: s.birbY + newVelocity };
-    //     })
-    // );
-
-    // return merge(tickUpdate$, jump$).pipe(
-    //     scan((state, reducer) => reducer(state), initialState)
-    // );
-
+    // return tick$.pipe(scan((s: State) => ({ gameEnd: false }), initialState));
+    return jump$.pipe(
+        startWith({ apply: (s: State) => s } as Action),
+        scan((s, a) => a.apply(s), initialState)
+    );
 };
+
 
 // The following simply runs your main function on window load.  Make sure to leave it in place.
 // You should not need to change this, beware if you are.
