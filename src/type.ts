@@ -1,5 +1,5 @@
 export {Constants, Birb, Viewport}
-export type {Key, Event, State, Action}
+export type {Key, Event, State, Action, Body, View}
 
 const Viewport = {
     CANVAS_WIDTH: 600,
@@ -24,13 +24,37 @@ type Event = 'keydown' | 'keyup';
 
 // State processing
 
+type Body = Readonly<{
+    id: string,
+    birbX: number,
+    birbY: number,
+    birbVelocity: number,
+    birbLive: number,
+    createTime: number,
+}>
+
+type Pipe = Readonly<{
+    id: string,
+    x: number,
+    gapY: number,
+    gapH: number,
+    createTime: number,
+}>
+
 type State = Readonly<{
-    gameEnd: boolean;
-    birdX: number;
-    birbY: number;
-    birbVelocity: number;
-    birbLive: number;
+    gameEnd: boolean,
+    time: number,
+    pipes: readonly Pipe[],
+    exit: readonly number[],
+    birb: Body,
+    objCount: number,
+    score: number,
 }>;
+
+type View = Readonly<{
+    svg: SVGSVGElement,
+    birbImg: SVGImageElement,
+}>
 
 interface Action{
     apply(s:State): State;

@@ -36,7 +36,7 @@ import {
 import { fromFetch } from "rxjs/fetch";
 
 import * as Game from "./type";
-import type { Key, Event, State, Action} from "./type";
+import type { Key, Event, State, Action, Body, View} from "./type";
 import { Jump, reduceState, Gravity } from "./state";
 
 /** Constants */
@@ -45,15 +45,37 @@ import { Jump, reduceState, Gravity } from "./state";
 
 // User input
 
+function createBirb(
+    id: string,
+    x: number,
+    y: number,
+    createdAt: number,
+    lives = 3
+):Body{
+    return {
+        id,
+        birbX: x,
+        birbY: y,
+        birbVelocity: 0,
+        birbLive: lives,
+        createTime: createdAt,
+    }
+}
 
-
-const initialState: State = {
+const initialState = (t0: number, canvasW: number, canvasH: number): State => ({
     gameEnd: false,
-    birdX: Game.Viewport.CANVAS_WIDTH * 0.3 - Game.Birb.WIDTH / 2,
-    birbY: Game.Viewport.CANVAS_HEIGHT / 2 - Game.Birb.HEIGHT / 2,
-    birbVelocity: 10,
-    birbLive: 3,
-};
+    time: t0,
+    pipes: [],
+    exit: [],
+    objCount: 0,
+    score: 0,
+    birb: createBirb(
+        "birb",
+        canvasW * 0.3,
+        canvasH / 2,
+        t0
+    ),
+});
 
 /**
  * Updates the state by proceeding with one time step.
@@ -131,6 +153,26 @@ const createSvgElement = (
     return elem;
 };
 
+const initView = (): View => {
+    const svg = document.querySelector("#svgCanvas") as SVGSVGElement;
+    svg.setAttribute(
+        "viewBox",
+        `0 0 ${Game.Viewport.CANVAS_WIDTH} ${Game.Viewport.CANVAS_HEIGHT}`
+    );
+
+    const birbImg = createSvgElement(svg.namespaceURI, "image", {
+        href: "assets/birb.png",
+        width: String(Game.Birb.WIDTH),
+        height: String(Game.Birb.HEIGHT),
+        x: String(Game.Viewport.CANVAS_WIDTH * 0.3 - Game.Birb.WIDTH / 2),
+        y: String(Game.Viewport.CANVAS_HEIGHT / 2 - Game.Birb.HEIGHT / 2),
+    }) as SVGImageElement;
+
+    svg.appendChild(birbImg);
+    return { svg, birbImg };
+};
+
+
 const render = (): ((s: State) => void) => {
     // Canvas elements
     const gameOver = document.querySelector("#gameOver") as SVGElement;
@@ -153,28 +195,11 @@ const render = (): ((s: State) => void) => {
      *
      * @param s Current state
      */
+    getPipe$();
+    
+    const v: View = initView();
 
-        // .subscribe(word => console.log(word));
-    getPipe();
-
-    const birdImg = createSvgElement(svg.namespaceURI, "image", {
-        href: "assets/birb.png",
-        x: `${Game.Viewport.CANVAS_WIDTH * 0.3 - Game.Birb.WIDTH / 2}`,
-        y: `${Game.Viewport.CANVAS_HEIGHT / 2 - Game.Birb.HEIGHT / 2}`,
-        width: `${Game.Birb.WIDTH}`,
-        height: `${Game.Birb.HEIGHT}`,
-    });
-    svg.appendChild(birdImg);
     return (s: State) => {
-        // Add birb to the main grid canvas
-        // const birdImg = createSvgElement(svg.namespaceURI, "image", {
-        //     href: "assets/birb.png",
-        //     x: `${Game.Viewport.CANVAS_WIDTH * 0.3 - Game.Birb.WIDTH / 2}`,
-        //     y: `${Game.Viewport.CANVAS_HEIGHT / 2 - Game.Birb.HEIGHT / 2}`,
-        //     width: `${Game.Birb.WIDTH}`,
-        //     height: `${Game.Birb.HEIGHT}`,
-        // });
-        // svg.appendChild(birdImg);
 
         // Draw a static pipe as a demonstration
         const pipeGapY = 200; // vertical center of the gap
@@ -201,8 +226,8 @@ const render = (): ((s: State) => void) => {
         svg.appendChild(pipeTop);
         svg.appendChild(pipeBottom);
 
-        birdImg.setAttribute("x", `${s.birdX - Game.Birb.WIDTH / 2}`);
-        birdImg.setAttribute("y", `${s.birbY - Game.Birb.HEIGHT / 2}`);
+        v.birbImg.setAttribute("x", `${s.birb.birbX - Game.Birb.WIDTH / 2}`);
+        v.birbImg.setAttribute("y", `${s.birb.birbY - Game.Birb.HEIGHT / 2}`);
 
     };
 };
@@ -218,13 +243,19 @@ export const state$ = (csvContents: string): Observable<State> => {
     const tick$ = interval(Game.Constants.TICK_RATE_MS);
 
     const birdMovement$ = merge(jump$, gravity$);
+
+    const seed: State = initialState(
+        performance.now(),
+        Game.Viewport.CANVAS_WIDTH,
+        Game.Viewport.CANVAS_HEIGHT
+    );
     return birdMovement$.pipe(
         startWith({apply: (s:State) => s} as Action),
-        scan(reduceState, initialState)
+        scan(reduceState, seed)
     )
 };
 
-function getPipe() {
+const getPipe$ = () => {
     const { protocol, hostname, port } = new URL(import.meta.url);
     const baseUrl = `${protocol}//${hostname}${port ? `:${port}` : ""}`;
 
