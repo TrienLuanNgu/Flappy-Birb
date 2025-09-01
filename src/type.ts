@@ -1,5 +1,5 @@
 export {Constants, Birb, Viewport}
-export type {Key, Event, State, Action, Body, View}
+export type {Key, Event, State, Action, Body, View, CsvRow}
 
 const Viewport = {
     CANVAS_WIDTH: 600,
@@ -55,6 +55,12 @@ type View = Readonly<{
     svg: SVGSVGElement,
     birbImg: SVGImageElement,
 }>
+
+type CsvRow = { 
+    gap: number,
+    height: number,
+    delay: number 
+};
 
 interface Action{
     apply(s:State): State;

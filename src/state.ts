@@ -2,7 +2,7 @@
 import * as Game from "./type";
 import { Key, Event, State, Action } from "./type";
 
-export {Jump, reduceState, Gravity}
+export {Jump, reduceState, Gravity, CreatePipe, TickPipes}
 
 class Jump implements Action{
     constructor(public readonly velocity: number){}
@@ -32,5 +32,36 @@ class Gravity implements Action{
                 birbY: newY,
             }
         }
+    }
+}
+
+class CreatePipe implements Action {
+    constructor (public readonly gapY: number, public readonly gapH: number){}
+    apply(s:State): State {
+        const id = `pipe-${s.objCount + 1}`;
+        const pipe = {
+            id,
+            x: Game.Viewport.CANVAS_WIDTH,
+            gapY: this.gapY,
+            gapH: this.gapH,
+            createTime: s.time,
+        } as const;
+
+        return { 
+            ...s, 
+            objCount: s.objCount + 1, 
+            pipes: [...s.pipes, pipe] 
+        };
+    }
+}
+
+class TickPipes implements Action {
+    private readonly speedPxPerMs = 0.12; // ~72 px/s; tweak to taste
+    constructor(private readonly dtMs = Game.Constants.TICK_RATE_MS) {}
+    apply(s: State): State {
+        const dx = this.speedPxPerMs * this.dtMs;
+        const moved = s.pipes.map(p => ({ ...p, x: p.x - dx }));
+        const kept = moved.filter(p => p.x + Game.Constants.PIPE_WIDTH > 0); // keep if still on-screen
+        return { ...s, pipes: kept };
     }
 }
