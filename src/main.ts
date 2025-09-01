@@ -29,6 +29,7 @@ import {
     startWith,
     switchMap,
     take,
+    takeWhile,
     tap,
     timer,
     zip,
@@ -50,7 +51,7 @@ function createBirb(
     x: number,
     y: number,
     createdAt: number,
-    lives = 100
+    lives = 3
 ):Body{
     return {
         id,
@@ -191,11 +192,6 @@ const render = (): ((s: State) => void) => {
 
     const svg = document.querySelector("#svgCanvas") as SVGSVGElement;
 
-    svg.setAttribute(
-        "viewBox",
-        `0 0 ${Game.Viewport.CANVAS_WIDTH} ${Game.Viewport.CANVAS_HEIGHT}`,
-    );
-
     const pipesLayer = createSvgElement(v.svg.namespaceURI, "g", {}) as SVGGElement;
     v.svg.appendChild(pipesLayer);
 
@@ -247,7 +243,7 @@ const render = (): ((s: State) => void) => {
 
     return (s: State) => {
         const invincible = s.invincibleUntil !== undefined && s.time < s.invincibleUntil;
-        
+
         v.birbImg.setAttribute("x", String(s.birb.birbX - Game.Birb.WIDTH / 2));
         v.birbImg.setAttribute("y", String(s.birb.birbY - Game.Birb.HEIGHT / 2));
 
@@ -259,6 +255,7 @@ const render = (): ((s: State) => void) => {
         livesText.textContent = String(s.birb.birbLive);
     };
 };
+
 
 export const state$ = (csvContents: string): Observable<State> => {
     /** User input */
@@ -332,5 +329,6 @@ if (typeof window !== "undefined") {
             // On click - start the game
             click$.pipe(switchMap(() => state$(contents))),
         ),
+        takeWhile((s:State) => !s.gameEnd, true)
     ).subscribe(render());
 }

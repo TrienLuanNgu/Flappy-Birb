@@ -1,9 +1,6 @@
 import * as Game from "./type";
-import { State, Pipe } from "./type";
+import { State, Pipe, Rect } from "./type";
 export { handleCollisions };
-
-type Rect = Readonly<{ x: number; y: number; w: number; h: number }>;
-const INVINCIBLE_MS = 1000;
 
 const overlapAABB = (a: Rect, b: Rect) =>
   a.x < b.x + b.w &&
@@ -31,58 +28,58 @@ const pipeRects = (p: Pipe): [Rect, Rect] => {
     ];
 };
 
-const clamp = (x: number, lo: number, hi: number) => Math.max(lo, Math.min(hi, x));
-const randBetween = (lo: number, hi: number) => lo + Math.random() * (hi - lo);
-
 // Tune these if you like, or move them into Game.Constants
-const BOUNCE_MIN = 6;
-const BOUNCE_MAX = 12;
 
 const handleCollisions = (s: State): State => {
     if (s.invincibleUntil !== undefined && s.time < s.invincibleUntil) return s;
 
-  const b = birdRect(s);
+    const b = birdRect(s);
 
-  // bounds
-  const hitTopBound = b.y <= 0;
-  const hitBottomBound = b.y + b.h >= Game.Viewport.CANVAS_HEIGHT;
+    // bounds
+    const hitTopBound = b.y <= 0;
+    const hitBottomBound = b.y + b.h >= Game.Viewport.CANVAS_HEIGHT;
 
-  // pipes (check top vs bottom)
-  let hitTopPipe = false, hitBottomPipe = false;
-  for (const p of s.pipes) {
-    const [topRect, botRect] = pipeRects(p);
-    if (!hitTopPipe && overlapAABB(b, topRect)) hitTopPipe = true;
-    if (!hitBottomPipe && overlapAABB(b, botRect)) hitBottomPipe = true;
-    if (hitTopPipe || hitBottomPipe) break;
-  }
+    // pipes (check top vs bottom)
+    let hitTopPipe = false, hitBottomPipe = false;
+    for (const p of s.pipes) {
+        const [topRect, botRect] = pipeRects(p);
+        if (!hitTopPipe && overlapAABB(b, topRect)) hitTopPipe = true;
+        if (!hitBottomPipe && overlapAABB(b, botRect)) hitBottomPipe = true;
+        if (hitTopPipe || hitBottomPipe) break;
+    }
 
-  const anyHit = hitTopBound || hitBottomBound || hitTopPipe || hitBottomPipe;
-  if (!anyHit) return s;
+    const anyHit = hitTopBound || hitBottomBound || hitTopPipe || hitBottomPipe;
+    if (!anyHit) return s;
 
-  // Decide bounce direction
-  const bounceMag = 6 + Math.random() * (12 - 6);
-  const bounceVy =
-    hitTopBound || hitTopPipe ? +bounceMag :
-    hitBottomBound || hitBottomPipe ? -bounceMag :
-    -bounceMag;
+    // Decide bounce direction
+    const bounceMag = 6 + Math.random() * (12 - 6);
+    const bounceVy =
+        hitTopBound || hitTopPipe ? +bounceMag :
+        hitBottomBound || hitBottomPipe ? -bounceMag :
+        -bounceMag;
 
-  const livesLeft = Math.max(0, s.birb.birbLive - 1);
-  const gameEnd = livesLeft === 0;
+    const livesLeft = Math.max(0, s.birb.birbLive - 1);
+    if (livesLeft === 0) {
+        return {
+            ...s,
+            birb: { ...s.birb, birbLive: 0, birbVelocity: 0 },
+            gameEnd: true,
+        };
+    }
 
-  const clampedY = Math.min(
-    Math.max(s.birb.birbY + bounceVy, Game.Birb.HEIGHT / 2),
-    Game.Viewport.CANVAS_HEIGHT - Game.Birb.HEIGHT / 2
-  );
+    const minY = Game.Birb.HEIGHT / 2;
+    const maxY = Game.Viewport.CANVAS_HEIGHT - Game.Birb.HEIGHT / 2;
+    const newY  = Math.max(minY, Math.min(maxY, s.birb.birbY + bounceVy));
 
-  return {
-    ...s,
-    birb: {
-      ...s.birb,
-      birbLive: livesLeft,
-      birbVelocity: gameEnd ? 0 : bounceVy,
-      birbY: gameEnd ? s.birb.birbY : clampedY,
-    },
-    invincibleUntil: gameEnd ? s.time : s.time + INVINCIBLE_MS, // <-- set cooldown
-    gameEnd,
-  };
+    return {
+        ...s,
+        birb: {
+            ...s.birb,
+            birbLive: livesLeft,
+            birbVelocity: bounceVy,
+            birbY: newY,
+        },
+        invincibleUntil: s.time + 1000,
+        gameEnd: false,
+    };
 };

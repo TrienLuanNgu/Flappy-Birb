@@ -1,5 +1,5 @@
 export {Constants, Birb, Viewport}
-export type { Key, Event, State, Action, Body, View, CsvRow, Pipe };
+export type { Key, Event, State, Action, Body, View, CsvRow, Pipe, Rect };
 
 const Viewport = {
     CANVAS_WIDTH: 600,
@@ -16,6 +16,7 @@ const Constants = {
     TICK_RATE_MS: 30, // Might need to change this!
     GRAVITY: 1.5, 
     MAX_FALL_RATE: 18,
+    INVINCIBLE_MS: 1000,
 } as const;
 
 type Key = "Space" | "KeyR";
@@ -23,6 +24,13 @@ type Key = "Space" | "KeyR";
 type Event = 'keydown' | 'keyup';
 
 // State processing
+
+type Rect = Readonly<{ 
+    x: number,
+    y: number, 
+    w: number,
+    h: number,
+}>
 
 type Body = Readonly<{
     id: string,
