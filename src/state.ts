@@ -1,8 +1,16 @@
 
 import * as Game from "./type";
 import { Key, Event, State, Action } from "./type";
+import { handleCollisions } from "./collision";
 
-export {Jump, reduceState, Gravity, CreatePipe, TickPipes}
+export {Jump, reduceState, Gravity, CreatePipe, TickPipes, Tick}
+
+class Tick implements Action {
+    constructor(private readonly dt = Game.Constants.TICK_RATE_MS) {}
+    apply(s: State): State {
+        return { ...s, time: s.time + this.dt };
+    }
+}
 
 class Jump implements Action{
     constructor(public readonly velocity: number){}
@@ -14,7 +22,7 @@ class Jump implements Action{
     }
 }
 
-const reduceState = (s: State, action: Action) => action.apply(s);
+const reduceState = (s: State, action: Action) => handleCollisions(action.apply(s));
 
 class Gravity implements Action{
     apply(s:State): State {
@@ -56,12 +64,12 @@ class CreatePipe implements Action {
 }
 
 class TickPipes implements Action {
-    private readonly speedPxPerMs = 0.12; // ~72 px/s; tweak to taste
+    private readonly speedPxPerMs = 0.12;
     constructor(private readonly dtMs = Game.Constants.TICK_RATE_MS) {}
     apply(s: State): State {
         const dx = this.speedPxPerMs * this.dtMs;
         const moved = s.pipes.map(p => ({ ...p, x: p.x - dx }));
-        const kept = moved.filter(p => p.x + Game.Constants.PIPE_WIDTH > 0); // keep if still on-screen
+        const kept = moved.filter(p => p.x + Game.Constants.PIPE_WIDTH > 0);
         return { ...s, pipes: kept };
     }
 }

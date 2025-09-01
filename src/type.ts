@@ -1,5 +1,5 @@
 export {Constants, Birb, Viewport}
-export type {Key, Event, State, Action, Body, View, CsvRow}
+export type { Key, Event, State, Action, Body, View, CsvRow, Pipe };
 
 const Viewport = {
     CANVAS_WIDTH: 600,
@@ -49,6 +49,7 @@ type State = Readonly<{
     birb: Body,
     objCount: number,
     score: number,
+    invincibleUntil?: number,
 }>;
 
 type View = Readonly<{

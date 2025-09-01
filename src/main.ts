@@ -37,7 +37,7 @@ import { fromFetch } from "rxjs/fetch";
 
 import * as Game from "./type";
 import type { Key, Event, State, Action, Body, View, CsvRow} from "./type";
-import { Jump, reduceState, Gravity, CreatePipe, TickPipes } from "./state";
+import { Jump, reduceState, Gravity, CreatePipe, TickPipes, Tick } from "./state";
 
 /** Constants */
 
@@ -50,7 +50,7 @@ function createBirb(
     x: number,
     y: number,
     createdAt: number,
-    lives = 3
+    lives = 100
 ):Body{
     return {
         id,
@@ -136,6 +136,8 @@ const tickPipes$ = interval(Game.Constants.TICK_RATE_MS).pipe(
     map(() => new TickPipes())
 );
 
+const time$ = interval(Game.Constants.TICK_RATE_MS).pipe(map(() => new Tick()));
+
 /**
  * Creates an SVG element with the given properties.
  *
@@ -179,11 +181,24 @@ const initView = (): View => {
 const render = (): ((s: State) => void) => {
     const v: View = initView();
 
-    // A layer to hold all pipes
+    // Canvas elements
+    const gameOver = document.querySelector("#gameOver") as SVGElement;
+    const container = document.querySelector("#main") as HTMLElement;
+
+    // Text fields
+    const livesText = document.querySelector("#livesText") as HTMLElement;
+    const scoreText = document.querySelector("#scoreText") as HTMLElement;
+
+    const svg = document.querySelector("#svgCanvas") as SVGSVGElement;
+
+    svg.setAttribute(
+        "viewBox",
+        `0 0 ${Game.Viewport.CANVAS_WIDTH} ${Game.Viewport.CANVAS_HEIGHT}`,
+    );
+
     const pipesLayer = createSvgElement(v.svg.namespaceURI, "g", {}) as SVGGElement;
     v.svg.appendChild(pipesLayer);
 
-    // track rects by pipe id
     const pipeElems = new Map<string, { top: SVGRectElement; bottom: SVGRectElement }>();
 
     const creatingPipePair = (id: string) => {
@@ -218,25 +233,30 @@ const render = (): ((s: State) => void) => {
         pair.bottom.setAttribute("height", String(bottomH));
     };
 
-    const removeMissing = (aliveIds: readonly string[]) => {
-        const alive = new Set(aliveIds);
+    const removePipes = (id: readonly string[]) => {
+        const inCanvas = new Set(id);
         for (const [id, pair] of pipeElems) {
-            if (!alive.has(id)) {
+            if (!inCanvas.has(id)) {
                 pair.top.remove();
                 pair.bottom.remove();
                 pipeElems.delete(id);
             }
         }
     };
+    
 
     return (s: State) => {
-        // bird position
+        const invincible = s.invincibleUntil !== undefined && s.time < s.invincibleUntil;
+        
         v.birbImg.setAttribute("x", String(s.birb.birbX - Game.Birb.WIDTH / 2));
         v.birbImg.setAttribute("y", String(s.birb.birbY - Game.Birb.HEIGHT / 2));
 
-        // pipes (create/update/remove)
+        v.birbImg.setAttribute("opacity", invincible ? ((Math.floor(s.time / 100) % 2) ? "0.4" : "1") : "1");
+
         s.pipes.forEach(p => upsertPipe(p.id, p.x, p.gapY, p.gapH));
-        removeMissing(s.pipes.map(p => p.id));
+        removePipes(s.pipes.map(p => p.id));
+
+        livesText.textContent = String(s.birb.birbLive);
     };
 };
 
@@ -250,7 +270,7 @@ export const state$ = (csvContents: string): Observable<State> => {
     /** Determines the rate of time steps */
     const tick$ = interval(Game.Constants.TICK_RATE_MS);
 
-    const birdMovement$ = merge(jump$, gravity$);
+    const birdMovement$ = merge(jump$, gravity$, time$);
     const pipeActions$  = makePipeActions$(csvContents);
 
     const seed: State = initialState(
