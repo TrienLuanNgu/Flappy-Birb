@@ -25,6 +25,7 @@ import {
     map,
     merge,
     mergeMap,
+    repeat,
     scan,
     startWith,
     switchMap,
@@ -253,6 +254,8 @@ const render = (): ((s: State) => void) => {
         removePipes(s.pipes.map(p => p.id));
 
         livesText.textContent = String(s.birb.birbLive);
+        scoreText.textContent = String(s.score);
+        gameOver.textContent = "Game";
     };
 };
 
@@ -330,5 +333,7 @@ if (typeof window !== "undefined") {
             click$.pipe(switchMap(() => state$(contents))),
         ),
         takeWhile((s:State) => !s.gameEnd, true)
+    ).pipe(
+        repeat()
     ).subscribe(render());
 }

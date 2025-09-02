@@ -47,6 +47,7 @@ type Pipe = Readonly<{
     gapY: number,
     gapH: number,
     createTime: number,
+    passed: boolean,
 }>
 
 type State = Readonly<{

@@ -47,12 +47,13 @@ class CreatePipe implements Action {
     constructor (public readonly gapY: number, public readonly gapH: number){}
     apply(s:State): State {
         const id = `pipe-${s.objCount + 1}`;
-        const pipe = {
+        const pipe: Game.Pipe = {
             id,
             x: Game.Viewport.CANVAS_WIDTH,
             gapY: this.gapY,
             gapH: this.gapH,
             createTime: s.time,
+            passed: false,
         } as const;
 
         return { 
@@ -66,10 +67,45 @@ class CreatePipe implements Action {
 class TickPipes implements Action {
     private readonly speedPxPerMs = 0.12;
     constructor(private readonly dtMs = Game.Constants.TICK_RATE_MS) {}
+
     apply(s: State): State {
         const dx = this.speedPxPerMs * this.dtMs;
-        const moved = s.pipes.map(p => ({ ...p, x: p.x - dx }));
+        const moved = s.pipes
+            .map(p => ({ ...p, x: p.x - dx }))
+
         const kept = moved.filter(p => p.x + Game.Constants.PIPE_WIDTH > 0);
-        return { ...s, pipes: kept };
+
+        const birdX = s.birb.birbX;
+        const insideGap = (py: number, p: Game.Pipe) =>
+        py > (p.gapY - p.gapH / 2) && py < (p.gapY + p.gapH / 2);
+
+        
+        const okToScore = s.invincibleUntil === undefined || s.time >= s.invincibleUntil;
+
+        // 3) edge-crossing scoring
+        const { pipes: updated, gained } = kept.reduce(
+            (acc, p) => {
+                const currRight = p.x + Game.Constants.PIPE_WIDTH; // after move
+                const prevRight = currRight + dx;                   // before move
+
+                // true exactly on the tick where the right edge crosses the bird's x
+                const crossedNow = prevRight >= birdX && currRight < birdX;
+
+                const scoredNow =
+                !p.passed && crossedNow && insideGap(s.birb.birbY, p) && okToScore;
+
+                const nextP = scoredNow ? { ...p, scored: true } : p;
+
+                return {
+                    pipes: [...acc.pipes, nextP],
+                    gained: acc.gained + (scoredNow ? 1 : 0),
+                };
+            },
+                { 
+                    pipes: [] as Game.Pipe[],
+                    gained: 0 
+                }
+            );
+        return { ...s, pipes: updated, score: s.score + gained };
     }
 }
