@@ -64,7 +64,7 @@ function createBirb(
     }
 }
 
-const initialState = (t0: number, canvasW: number, canvasH: number): State => ({
+const initialState = (t0: number, canvasW: number, canvasH: number, noPipes: number): State => ({
     gameEnd: false,
     time: t0,
     pipes: [],
@@ -191,6 +191,8 @@ const render = (): ((s: State) => void) => {
     const livesText = document.querySelector("#livesText") as HTMLElement;
     const scoreText = document.querySelector("#scoreText") as HTMLElement;
 
+    const gameOverText = gameOver.querySelector("text") as SVGTextElement;
+    
     const svg = document.querySelector("#svgCanvas") as SVGSVGElement;
 
     const pipesLayer = createSvgElement(v.svg.namespaceURI, "g", {}) as SVGGElement;
@@ -255,7 +257,13 @@ const render = (): ((s: State) => void) => {
 
         livesText.textContent = String(s.birb.birbLive);
         scoreText.textContent = String(s.score);
-        gameOver.textContent = "Game";
+        if (s.gameEnd) {
+            gameOverText.textContent = s.won ? "You Win!" : "Game Over";
+            gameOver.setAttribute("visibility", "visible");
+            gameOver.parentNode?.appendChild(gameOver);
+        } else {
+            gameOver.setAttribute("visibility", "hidden");
+        }
     };
 };
 
@@ -270,13 +278,17 @@ export const state$ = (csvContents: string): Observable<State> => {
     /** Determines the rate of time steps */
     const tick$ = interval(Game.Constants.TICK_RATE_MS);
 
+    const rows = parseCsv(csvContents);
+    const totalPipes = rows.length;
+
     const birdMovement$ = merge(jump$, gravity$, time$);
-    const pipeActions$  = makePipeActions$(csvContents);
+    const pipeActions$  = makePipeActions$(rows);
 
     const seed: State = initialState(
         performance.now(),
         Game.Viewport.CANVAS_WIDTH,
-        Game.Viewport.CANVAS_HEIGHT
+        Game.Viewport.CANVAS_HEIGHT,
+        totalPipes,
     );
     return merge(birdMovement$, pipeActions$, tickPipes$).pipe(
         startWith({apply: (s:State) => s} as Action),
@@ -291,8 +303,8 @@ const parseCsv = (text: string): CsvRow[] =>
         return { gap: Number(gap_y), height: Number(gap_height), delay: Number(time) };
 });
 
-const makePipeActions$ = (csvContents: string) => {
-    const rows = parseCsv(csvContents);
+const makePipeActions$ = (rows: CsvRow[]) => {
+    // const rows = parseCsv(csvContents);
     const toPx = (fraction: number) => fraction * Game.Viewport.CANVAS_HEIGHT;
     return from(rows).pipe(
         mergeMap(({ gap, height, delay }) =>
@@ -333,7 +345,9 @@ if (typeof window !== "undefined") {
             click$.pipe(switchMap(() => state$(contents))),
         ),
         takeWhile((s:State) => !s.gameEnd, true)
-    ).pipe(
+    )
+    .pipe(
         repeat()
-    ).subscribe(render());
+    )
+    .subscribe(render());
 }

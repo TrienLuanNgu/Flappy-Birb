@@ -35,18 +35,16 @@ const handleCollisions = (s: State): State => {
 
     const b = birdRect(s);
 
+    const lives = Math.max(0, s.birb.birbLive - 1);
+    const dead = lives === 0;
+
     // bounds
     const hitTopBound = b.y <= 0;
     const hitBottomBound = b.y + b.h >= Game.Viewport.CANVAS_HEIGHT;
 
-    // pipes (check top vs bottom)
-    let hitTopPipe = false, hitBottomPipe = false;
-    for (const p of s.pipes) {
-        const [topRect, botRect] = pipeRects(p);
-        if (!hitTopPipe && overlapAABB(b, topRect)) hitTopPipe = true;
-        if (!hitBottomPipe && overlapAABB(b, botRect)) hitBottomPipe = true;
-        if (hitTopPipe || hitBottomPipe) break;
-    }
+    // pipes (check top vs bottom) – use Array.some to stay pure
+    const hitTopPipe = s.pipes.some(p => overlapAABB(b, pipeRects(p)[0]));
+    const hitBottomPipe = s.pipes.some(p => overlapAABB(b, pipeRects(p)[1]));
 
     const anyHit = hitTopBound || hitBottomBound || hitTopPipe || hitBottomPipe;
     if (!anyHit) return s;
@@ -59,17 +57,22 @@ const handleCollisions = (s: State): State => {
         -bounceMag;
 
     const livesLeft = Math.max(0, s.birb.birbLive - 1);
+
+    // Death branch: end immediately
     if (livesLeft === 0) {
         return {
             ...s,
             birb: { ...s.birb, birbLive: 0, birbVelocity: 0 },
             gameEnd: true,
+            won: false,           // death means not a win
+            winAt: undefined,     // clear any pending winAt
         };
     }
 
+    // Normal bounce branch
     const minY = Game.Birb.HEIGHT / 2;
     const maxY = Game.Viewport.CANVAS_HEIGHT - Game.Birb.HEIGHT / 2;
-    const newY  = Math.max(minY, Math.min(maxY, s.birb.birbY + bounceVy));
+    const newY = Math.max(minY, Math.min(maxY, s.birb.birbY + bounceVy));
 
     return {
         ...s,
@@ -80,6 +83,67 @@ const handleCollisions = (s: State): State => {
             birbY: newY,
         },
         invincibleUntil: s.time + 1000,
-        gameEnd: false,
+        // don’t flip gameEnd here unless it was already set elsewhere
+        gameEnd: s.gameEnd || dead,
+        won: dead ? false : s.won,
+        winAt: dead ? undefined : s.winAt,
     };
 };
+
+// const handleCollisions = (s: State): State => {
+//     if (s.invincibleUntil !== undefined && s.time < s.invincibleUntil) return s;
+
+//     const b = birdRect(s);
+
+//     const lives = Math.max(0, s.birb.birbLive - 1);
+//     const dead = lives === 0;
+
+//     // bounds
+//     const hitTopBound = b.y <= 0;
+//     const hitBottomBound = b.y + b.h >= Game.Viewport.CANVAS_HEIGHT;
+
+//     // pipes (check top vs bottom)
+//     let hitTopPipe = false, hitBottomPipe = false;
+//     for (const p of s.pipes) {
+//         const [topRect, botRect] = pipeRects(p);
+//         if (!hitTopPipe && overlapAABB(b, topRect)) hitTopPipe = true;
+//         if (!hitBottomPipe && overlapAABB(b, botRect)) hitBottomPipe = true;
+//         if (hitTopPipe || hitBottomPipe) break;
+//     }
+
+//     const anyHit = hitTopBound || hitBottomBound || hitTopPipe || hitBottomPipe;
+//     if (!anyHit) return s;
+
+//     // Decide bounce direction
+//     const bounceMag = 6 + Math.random() * (12 - 6);
+//     const bounceVy =
+//         hitTopBound || hitTopPipe ? +bounceMag :
+//         hitBottomBound || hitBottomPipe ? -bounceMag :
+//         -bounceMag;
+
+//     const livesLeft = Math.max(0, s.birb.birbLive - 1);
+//     if (livesLeft === 0) {
+//         return {
+//             ...s,
+//             birb: { ...s.birb, birbLive: 0, birbVelocity: 0 },
+//             gameEnd: true,
+//         };
+//     }
+
+//     const minY = Game.Birb.HEIGHT / 2;
+//     const maxY = Game.Viewport.CANVAS_HEIGHT - Game.Birb.HEIGHT / 2;
+//     const newY  = Math.max(minY, Math.min(maxY, s.birb.birbY + bounceVy));
+
+//     return {
+//         ...s,
+//         birb: {
+//             ...s.birb,
+//             birbLive: livesLeft,
+//             birbVelocity: bounceVy,
+//             birbY: newY,
+//         },
+//         invincibleUntil: s.time + 1000,
+//         gameEnd: s.gameEnd || dead,
+//         won: dead ? false : s.won,
+//     };
+// };

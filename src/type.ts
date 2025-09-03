@@ -59,6 +59,8 @@ type State = Readonly<{
     objCount: number,
     score: number,
     invincibleUntil?: number,
+    won?: boolean;
+    winAt?: number;
 }>;
 
 type View = Readonly<{

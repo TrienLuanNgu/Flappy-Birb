@@ -2,6 +2,7 @@
 import * as Game from "./type";
 import { Key, Event, State, Action } from "./type";
 import { handleCollisions } from "./collision";
+import { delay } from "rxjs";
 
 export {Jump, reduceState, Gravity, CreatePipe, TickPipes, Tick}
 
@@ -94,7 +95,7 @@ class TickPipes implements Action {
                 const scoredNow =
                 !p.passed && crossedNow && insideGap(s.birb.birbY, p) && okToScore;
 
-                const nextP = scoredNow ? { ...p, scored: true } : p;
+                const nextP = scoredNow ? { ...p, passed: true } : p;
 
                 return {
                     pipes: [...acc.pipes, nextP],
@@ -106,6 +107,45 @@ class TickPipes implements Action {
                     gained: 0 
                 }
             );
-        return { ...s, pipes: updated, score: s.score + gained };
+
+        // return { ...s, pipes: updated, score: s.score + gained };
+        // const allResolved = updated.length > 0 &&
+        //     updated.every(p => p.passed || (p.x + Game.Constants.PIPE_WIDTH) < (s.birb.birbX + Game.Birb.WIDTH/2));
+        const nextScore = s.score + gained;
+        
+
+        // 4) end the run when every pipe is resolved (passed or gone behind)
+        // return {
+        //     ...s,
+        //     pipes: updated,
+        //     score: nextScore,
+        //     gameEnd: s.gameEnd || allResolved,
+        // };
+
+        const birbFrontX = s.birb.birbX + Game.Birb.WIDTH / 2; // use birbX directly if it's already the front
+        const resolved = (p: Game.Pipe) =>
+        p.passed || (p.x + Game.Constants.PIPE_WIDTH) < birbFrontX;
+
+        const allResolved = updated.length > 0 && updated.every(resolved);
+
+        // Only start the victory timer once
+        const winStarted = allResolved && s.winAt === undefined;
+
+        // Delay before we actually stop (birb keeps flying)
+        const WIN_DELAY_MS = 2000; // tweak to taste
+
+        // If win timer already started, check whether to end now
+        const endAfterWin = s.winAt !== undefined && (s.time - s.winAt) >= WIN_DELAY_MS;
+
+        return {
+            ...s,
+            pipes: updated,
+            score: nextScore,
+            // start the victory glide when all pipes resolved
+            winAt: winStarted ? s.time : s.winAt,
+            won: winStarted ? true : s.won,
+            // end only after the glide delay (death uses different path)
+            gameEnd: s.gameEnd || endAfterWin,
+        };
     }
 }
