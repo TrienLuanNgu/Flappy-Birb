@@ -2,13 +2,21 @@ import * as Game from "./type";
 import { State, Pipe, Rect } from "./type";
 export { handleCollisions };
 
+/**
+ * This is a helper function to help with collision, It returns true if 2 rects overlap on both x and y axes
+ * @param a rect a
+ * @param b rect b
+ * @returns boolean
+ */
 const overlapAABB = (a: Rect, b: Rect) =>
-  a.x < b.x + b.w &&
-  a.x + a.w > b.x &&
-  a.y < b.y + b.h &&
-  a.y + a.h > b.y;
+    a.x < b.x + b.w && a.x + a.w > b.x && a.y < b.y + b.h && a.y + a.h > b.y;
 
-// Bird -> rect (centered sprite)
+/**
+ * This function is to box the Birb into a rect so that it's easier to handle the collisions
+ * Bird -> rect (centered sprite)
+ * @param s 
+ * @returns 
+ */
 const birdRect = (s: State): Rect => ({
     x: s.birb.birbX - Game.Birb.WIDTH / 2,
     y: s.birb.birbY - Game.Birb.HEIGHT / 2,
@@ -16,7 +24,15 @@ const birdRect = (s: State): Rect => ({
     h: Game.Birb.HEIGHT,
 });
 
-// Pipe -> two rects (top + bottom) derived from gap
+
+/**
+ * This function turns a pipe with a vertical gap into 2 rects
+ * Pipe -> two rects (top + bottom) derived from gap
+ * Top pipes (top rect) is from the top of the screen down to the top edge of the Gap
+ * Bottom pipes (bottom rect) is from the bottom edge of the Gap dowm to the bottom of the screen
+ * @param p 
+ * @returns the properties of the top and bottoms rects/pipes
+ */
 const pipeRects = (p: Pipe): [Rect, Rect] => {
     const topH = Math.max(0, p.gapY - p.gapH / 2);
     const bottomY = p.gapY + p.gapH / 2;
@@ -28,57 +44,73 @@ const pipeRects = (p: Pipe): [Rect, Rect] => {
     ];
 };
 
-// Tune these if you like, or move them into Game.Constants
-
+/**
+ * This function handles the collisions of the Birb with the Pipes + Top/Bottom edges of the screen, as well as
+ * handle the scorings
+ * @param s 
+ * @returns 
+ */
 const handleCollisions = (s: State): State => {
+
+    //Check the Birb's invincibility
     if (s.invincibleUntil !== undefined && s.time < s.invincibleUntil) return s;
 
+    // Box the Birb up into a rect
     const b = birdRect(s);
 
+    // Compute lives and dead
     const lives = Math.max(0, s.birb.birbLive - 1);
     const dead = lives === 0;
 
-    // bounds
-    const hitTopBound = b.y <= 0;
-    const hitBottomBound = b.y + b.h >= Game.Viewport.CANVAS_HEIGHT;
+    /**
+     * From this point the function starts to check for the collisions
+     */
+    
+    const hitTopBound = b.y <= 0; // bird's top edge at or above 0
+    const hitBottomBound = b.y + b.h >= Game.Viewport.CANVAS_HEIGHT; // bird's bottom edge at or below canvas height
 
-    // pipes (check top vs bottom) – use Array.some to stay pure
+    // This part it checks for each pipe, it builds two rects and checks overlap against the bird using overlapAABB
     const hitTopPipe = s.pipes.some(p => overlapAABB(b, pipeRects(p)[0]));
     const hitBottomPipe = s.pipes.some(p => overlapAABB(b, pipeRects(p)[1]));
 
+    // If none of those are true then return the original state (continue the game)
     const anyHit = hitTopBound || hitBottomBound || hitTopPipe || hitBottomPipe;
     if (!anyHit) return s;
 
-    // Decide bounce direction
+    /**
+     * This part handles if the Birb hit the top edge/top pipe it will bounce down, and vice versa
+     */
+    // Decide the bounce direction
     const bounceMag = 6 + Math.random() * (12 - 6);
     const bounceVy =
-        hitTopBound || hitTopPipe ? +bounceMag :
-        hitBottomBound || hitBottomPipe ? -bounceMag :
-        -bounceMag;
+        hitTopBound || hitTopPipe
+            ? +bounceMag
+            : hitBottomBound || hitBottomPipe
+              ? -bounceMag
+              : -bounceMag;
 
-    const livesLeft = Math.max(0, s.birb.birbLive - 1);
-
-    // Death branch: end immediately
-    if (livesLeft === 0) {
+    // If all the lives are gone, set gameEnd to true and stop the game, and set birbLive and birbVelocity to 0
+    if (lives === 0) {
         return {
             ...s,
             birb: { ...s.birb, birbLive: 0, birbVelocity: 0 },
             gameEnd: true,
-            won: false,           // death means not a win
-            winAt: undefined,     // clear any pending winAt
+            won: false,
+            winAt: undefined,
         };
     }
 
-    // Normal bounce branch
+    // If the Birb isn't out of life yet then apply the bounce logic to it
     const minY = Game.Birb.HEIGHT / 2;
     const maxY = Game.Viewport.CANVAS_HEIGHT - Game.Birb.HEIGHT / 2;
     const newY = Math.max(minY, Math.min(maxY, s.birb.birbY + bounceVy));
 
+    // Return a new State
     return {
         ...s,
         birb: {
             ...s.birb,
-            birbLive: livesLeft,
+            birbLive: lives, // Since the Birb hit something and bounced, deduct a life
             birbVelocity: bounceVy,
             birbY: newY,
         },
@@ -89,61 +121,3 @@ const handleCollisions = (s: State): State => {
         winAt: dead ? undefined : s.winAt,
     };
 };
-
-// const handleCollisions = (s: State): State => {
-//     if (s.invincibleUntil !== undefined && s.time < s.invincibleUntil) return s;
-
-//     const b = birdRect(s);
-
-//     const lives = Math.max(0, s.birb.birbLive - 1);
-//     const dead = lives === 0;
-
-//     // bounds
-//     const hitTopBound = b.y <= 0;
-//     const hitBottomBound = b.y + b.h >= Game.Viewport.CANVAS_HEIGHT;
-
-//     // pipes (check top vs bottom)
-//     let hitTopPipe = false, hitBottomPipe = false;
-//     for (const p of s.pipes) {
-//         const [topRect, botRect] = pipeRects(p);
-//         if (!hitTopPipe && overlapAABB(b, topRect)) hitTopPipe = true;
-//         if (!hitBottomPipe && overlapAABB(b, botRect)) hitBottomPipe = true;
-//         if (hitTopPipe || hitBottomPipe) break;
-//     }
-
-//     const anyHit = hitTopBound || hitBottomBound || hitTopPipe || hitBottomPipe;
-//     if (!anyHit) return s;
-
-//     // Decide bounce direction
-//     const bounceMag = 6 + Math.random() * (12 - 6);
-//     const bounceVy =
-//         hitTopBound || hitTopPipe ? +bounceMag :
-//         hitBottomBound || hitBottomPipe ? -bounceMag :
-//         -bounceMag;
-
-//     const livesLeft = Math.max(0, s.birb.birbLive - 1);
-//     if (livesLeft === 0) {
-//         return {
-//             ...s,
-//             birb: { ...s.birb, birbLive: 0, birbVelocity: 0 },
-//             gameEnd: true,
-//         };
-//     }
-
-//     const minY = Game.Birb.HEIGHT / 2;
-//     const maxY = Game.Viewport.CANVAS_HEIGHT - Game.Birb.HEIGHT / 2;
-//     const newY  = Math.max(minY, Math.min(maxY, s.birb.birbY + bounceVy));
-
-//     return {
-//         ...s,
-//         birb: {
-//             ...s.birb,
-//             birbLive: livesLeft,
-//             birbVelocity: bounceVy,
-//             birbY: newY,
-//         },
-//         invincibleUntil: s.time + 1000,
-//         gameEnd: s.gameEnd || dead,
-//         won: dead ? false : s.won,
-//     };
-// };
