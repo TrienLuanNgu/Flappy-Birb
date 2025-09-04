@@ -1,11 +1,12 @@
-
 import * as Game from "./type";
 import { Key, Event, State, Action } from "./type";
 import { handleCollisions } from "./collision";
-import { delay } from "rxjs";
 
-export {Jump, reduceState, Gravity, CreatePipe, TickPipes, Tick}
+export { Jump, reduceState, Gravity, CreatePipe, TickPipes, Tick };
 
+/**
+ * This class Purely bumps the time forward by dt milliseconds
+ */
 class Tick implements Action {
     constructor(private readonly dt = Game.Constants.TICK_RATE_MS) {}
     apply(s: State): State {
@@ -13,129 +14,167 @@ class Tick implements Action {
     }
 }
 
-class Jump implements Action{
-    constructor(public readonly velocity: number){}
-    apply(s:State): State {
+/**
+ * This class handle the jumping action of the Birb
+ * It sets an upward velocity
+ * But this class doesn't movethe Birb, just setting the velocity for the Birb to move up
+ * Gravity/Tick move it over time
+ */
+class Jump implements Action {
+    constructor(public readonly velocity: number) {}
+    apply(s: State): State {
         return {
-            ...s, 
-            birb: {...s.birb, birbVelocity: -this.velocity}
+            ...s,
+            birb: { ...s.birb, birbVelocity: -this.velocity },
         };
     }
 }
 
-const reduceState = (s: State, action: Action) => handleCollisions(action.apply(s));
-
-class Gravity implements Action{
-    apply(s:State): State {
+/**
+ * This class adds Gravity to the birb velocity (which is just changing the velocity)
+ * But have a limit to it (fall_rate), if not then the Birb will keep fallign faster and faster
+ * The upward jumping velocity of the Birb gets counter by the Gravity across every ticks
+ */
+class Gravity implements Action {
+    apply(s: State): State {
+        // If the birbVelocity gets bigger than the MAX_FALL_RATE (since the gravity kept being added to the velocity)
+        // Then MAX_FALL_RATE will be used
         const fall_rate = Math.min(
-            s.birb.birbVelocity + Game.Constants.GRAVITY, 
-            Game.Constants.MAX_FALL_RATE
+            s.birb.birbVelocity + Game.Constants.GRAVITY,
+            Game.Constants.MAX_FALL_RATE,
         );
 
+        // Update the Birb's position accross each tick
         const newY = s.birb.birbY + fall_rate;
         return {
             ...s,
-            birb:{
+            birb: {
                 ...s.birb,
                 birbVelocity: fall_rate,
                 birbY: newY,
-            }
-        }
+            },
+        };
     }
 }
 
+/**
+ * This class creates a pipe at the right side of the Canvas with given properties (gap center/height)
+ * Increment objCount everytime a pipe is created to ensure the unique ID
+ */
 class CreatePipe implements Action {
-    constructor (public readonly gapY: number, public readonly gapH: number){}
-    apply(s:State): State {
-        const id = `pipe-${s.objCount + 1}`;
+    constructor(
+        public readonly gapY: number,
+        public readonly gapH: number,
+    ) {}
+    apply(s: State): State {
+        const id = `pipe-${s.objCount + 1}`; //Ensure unique ID
         const pipe: Game.Pipe = {
             id,
             x: Game.Viewport.CANVAS_WIDTH,
             gapY: this.gapY,
             gapH: this.gapH,
             createTime: s.time,
-            passed: false,
+            passed: false, //Set false because the Birb has not passed through the Pipe
         } as const;
 
-        return { 
-            ...s, 
-            objCount: s.objCount + 1, 
-            pipes: [...s.pipes, pipe] 
+        return {
+            ...s,
+            objCount: s.objCount + 1,
+            pipes: [...s.pipes, pipe],
         };
     }
 }
 
+/**
+ * This class handles the moving of the Pipe, scoring of the Birb, and detecting victory
+ */
 class TickPipes implements Action {
     private readonly speedPxPerMs = 0.12;
     constructor(private readonly dtMs = Game.Constants.TICK_RATE_MS) {}
 
     apply(s: State): State {
         const dx = this.speedPxPerMs * this.dtMs;
-        const moved = s.pipes
-            .map(p => ({ ...p, x: p.x - dx }))
 
+        // Move the pipes to the left by dx
+        const moved = s.pipes.map(p => ({ ...p, x: p.x - dx }));
+
+        // Remove the pipes that are off the screen (moved all the way to the left side already)
         const kept = moved.filter(p => p.x + Game.Constants.PIPE_WIDTH > 0);
 
+        /**
+         * This part handles the scoring logic
+         * This works by check if the Birb X position has passed through the Pipe's right edge (indicating the Birb is all the way through)
+         * In addition, the Birb cannot have invincibility when passing through
+         */
+
         const birdX = s.birb.birbX;
+
+        // Check if the Birb is inside the Gap
         const insideGap = (py: number, p: Game.Pipe) =>
-        py > (p.gapY - p.gapH / 2) && py < (p.gapY + p.gapH / 2);
+            py > p.gapY - p.gapH / 2 && py < p.gapY + p.gapH / 2;
 
-        
-        const okToScore = s.invincibleUntil === undefined || s.time >= s.invincibleUntil;
+        // Check for the Birb's invincibility, if Birb doesn't have it then TRUE and okToScore
+        const okToScore =
+            s.invincibleUntil === undefined || s.time >= s.invincibleUntil;
 
-        // 3) edge-crossing scoring
+        // This is the logic for when the Birb crossed the edge and score
         const { pipes: updated, gained } = kept.reduce(
             (acc, p) => {
-                const currRight = p.x + Game.Constants.PIPE_WIDTH; // after move
+                const currRight = p.x + Game.Constants.PIPE_WIDTH;  // after move
                 const prevRight = currRight + dx;                   // before move
 
                 // true exactly on the tick where the right edge crosses the bird's x
                 const crossedNow = prevRight >= birdX && currRight < birdX;
 
+                // If all of the conditions are satisfied, it will be TRUE
                 const scoredNow =
-                !p.passed && crossedNow && insideGap(s.birb.birbY, p) && okToScore;
+                    !p.passed &&
+                    crossedNow &&
+                    insideGap(s.birb.birbY, p) &&
+                    okToScore;
 
+                // If true, the Pipe's passed will be set to TRUE, else nothing will change
                 const nextP = scoredNow ? { ...p, passed: true } : p;
 
+                
                 return {
+                    // Keep building a new pipes array and a running gained total
                     pipes: [...acc.pipes, nextP],
                     gained: acc.gained + (scoredNow ? 1 : 0),
                 };
             },
-                { 
-                    pipes: [] as Game.Pipe[],
-                    gained: 0 
-                }
-            );
 
-        // return { ...s, pipes: updated, score: s.score + gained };
-        // const allResolved = updated.length > 0 &&
-        //     updated.every(p => p.passed || (p.x + Game.Constants.PIPE_WIDTH) < (s.birb.birbX + Game.Birb.WIDTH/2));
+            // Afterward
+            {
+                pipes: [] as Game.Pipe[], // updated will have the new array of pipes (with the passed changes)
+                gained: 0, // how many points to add to score in this tick
+            },
+        );
+
+        // Update the new score
         const nextScore = s.score + gained;
-        
 
-        // 4) end the run when every pipe is resolved (passed or gone behind)
-        // return {
-        //     ...s,
-        //     pipes: updated,
-        //     score: nextScore,
-        //     gameEnd: s.gameEnd || allResolved,
-        // };
-
-        const birbFrontX = s.birb.birbX + Game.Birb.WIDTH / 2; // use birbX directly if it's already the front
+        /**
+         * This part handles the Win part, when the Birb has passed through all the pipes
+         * resolved means a pipe is behind the bird's FRONT (the Birb has passed though)
+         */
+        const birbFrontX = s.birb.birbX + Game.Birb.WIDTH / 2;
         const resolved = (p: Game.Pipe) =>
-        p.passed || (p.x + Game.Constants.PIPE_WIDTH) < birbFrontX;
+            p.passed || p.x + Game.Constants.PIPE_WIDTH < birbFrontX;
 
+        // There are pipes and all of them are behind/passed
         const allResolved = updated.length > 0 && updated.every(resolved);
 
-        // Only start the victory timer once
+        // Start win timer exactly once when the last unresolved pipe becomes resolved
+        // I could have ended the Game here, but I wanted the Birb to keep going for a bit longer and then the Game will stop
         const winStarted = allResolved && s.winAt === undefined;
 
         // Delay before we actually stop (birb keeps flying)
-        const WIN_DELAY_MS = 2000; // tweak to taste
+        const WIN_DELAY_MS = 2000;
 
         // If win timer already started, check whether to end now
-        const endAfterWin = s.winAt !== undefined && (s.time - s.winAt) >= WIN_DELAY_MS;
+        const endAfterWin =
+            s.winAt !== undefined && s.time - s.winAt >= WIN_DELAY_MS;
 
         return {
             ...s,
@@ -144,8 +183,19 @@ class TickPipes implements Action {
             // start the victory glide when all pipes resolved
             winAt: winStarted ? s.time : s.winAt,
             won: winStarted ? true : s.won,
-            // end only after the glide delay (death uses different path)
             gameEnd: s.gameEnd || endAfterWin,
         };
     }
 }
+
+/**
+ * This function is a reducer, it applies the action to produce a state, then immediately run handleCollisions which:
+    * Deducts a life if you hit something
+    * Applies a bounce + sets invincibleUntil
+    * Ends the game if lives hit zero
+ * @param s 
+ * @param action 
+ * @returns 
+ */
+const reduceState = (s: State, action: Action) =>
+    handleCollisions(action.apply(s));

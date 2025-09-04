@@ -45,8 +45,7 @@ const pipeRects = (p: Pipe): [Rect, Rect] => {
 };
 
 /**
- * This function handles the collisions of the Birb with the Pipes + Top/Bottom edges of the screen, as well as
- * handle the scorings
+ * This function handles the collisions of the Birb with the Pipes + Top/Bottom edges of the screen
  * @param s 
  * @returns 
  */
