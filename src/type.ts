@@ -72,8 +72,8 @@ type State = Readonly<{
     objCount: number,
     score: number,
     invincibleUntil?: number,
-    won?: boolean;
-    winAt?: number;
+    won?: boolean,
+    winAt?: number,
 }>;
 
 // Render/View
@@ -93,5 +93,5 @@ type CsvRow = {
 // Action interface
 //  This handle user input, collisions
 interface Action{
-    apply(s:State): State;
+    apply(s:State): State,
 }

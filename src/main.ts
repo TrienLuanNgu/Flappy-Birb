@@ -38,22 +38,23 @@ import {
 import { fromFetch } from "rxjs/fetch";
 
 import * as Game from "./type";
-import type { Key, Event, State, Action, Body, View, CsvRow} from "./type";
-import { Jump, reduceState, Gravity, CreatePipe, TickPipes, Tick } from "./state";
-
-/** Constants */
-
-
-
-// User input
+import type { Key, Event, State, Action, Body, View, CsvRow } from "./type";
+import {
+    Jump,
+    reduceState,
+    Gravity,
+    CreatePipe,
+    TickPipes,
+    Tick,
+} from "./state";
 
 function createBirb(
     id: string,
     x: number,
     y: number,
     createdAt: number,
-    lives = 3
-):Body{
+    lives = 3,
+): Body {
     return {
         id,
         birbX: x,
@@ -61,22 +62,22 @@ function createBirb(
         birbVelocity: 0,
         birbLive: lives,
         createTime: createdAt,
-    }
+    };
 }
 
-const initialState = (t0: number, canvasW: number, canvasH: number, noPipes: number): State => ({
+const initialState = (
+    t0: number,
+    canvasW: number,
+    canvasH: number,
+    noPipes: number,
+): State => ({
     gameEnd: false,
     time: t0,
     pipes: [],
     exit: [],
     objCount: 0,
     score: 0,
-    birb: createBirb(
-        "birb",
-        canvasW * 0.3,
-        canvasH / 2,
-        t0
-    ),
+    birb: createBirb("birb", canvasW * 0.3, canvasH / 2, t0),
 });
 
 /**
@@ -115,27 +116,26 @@ const hide = (elem: SVGElement): void => {
 };
 
 /**
- * 
- * @param eventName 
- * @param k 
- * @param result 
- * @returns 
+ *
+ * @param eventName
+ * @param k
+ * @param result
+ * @returns
  */
-const observeKey = <T>(eventName: Event, k: Key, result: ()=> T)=>
-    fromEvent<KeyboardEvent>(document,eventName)
-    .pipe(
-        filter(({code})=>code === k),
-        filter(({repeat})=>!repeat),
-        map(result));
+const observeKey = <T>(eventName: Event, k: Key, result: () => T) =>
+    fromEvent<KeyboardEvent>(document, eventName).pipe(
+        filter(({ code }) => code === k),
+        filter(({ repeat }) => !repeat),
+        map(result),
+    );
 
-
-const jump$ = observeKey('keydown', "Space",() => new Jump(10));
+const jump$ = observeKey("keydown", "Space", () => new Jump(10));
 const gravity$ = interval(Game.Constants.TICK_RATE_MS).pipe(
-    map(() => new Gravity()) 
-)
+    map(() => new Gravity()),
+);
 
 const tickPipes$ = interval(Game.Constants.TICK_RATE_MS).pipe(
-    map(() => new TickPipes())
+    map(() => new TickPipes()),
 );
 
 const time$ = interval(Game.Constants.TICK_RATE_MS).pipe(map(() => new Tick()));
@@ -165,7 +165,7 @@ const initView = (): View => {
     const svg = document.querySelector("#svgCanvas") as SVGSVGElement;
     svg.setAttribute(
         "viewBox",
-        `0 0 ${Game.Viewport.CANVAS_WIDTH} ${Game.Viewport.CANVAS_HEIGHT}`
+        `0 0 ${Game.Viewport.CANVAS_WIDTH} ${Game.Viewport.CANVAS_HEIGHT}`,
     );
 
     const birbImg = createSvgElement(svg.namespaceURI, "image", {
@@ -192,20 +192,29 @@ const render = (): ((s: State) => void) => {
     const scoreText = document.querySelector("#scoreText") as HTMLElement;
 
     const gameOverText = gameOver.querySelector("text") as SVGTextElement;
-    
-    const svg = document.querySelector("#svgCanvas") as SVGSVGElement;
 
-    const pipesLayer = createSvgElement(v.svg.namespaceURI, "g", {}) as SVGGElement;
+    const pipesLayer = createSvgElement(
+        v.svg.namespaceURI,
+        "g",
+        {},
+    ) as SVGGElement;
     v.svg.appendChild(pipesLayer);
 
-    const pipeElems = new Map<string, { top: SVGRectElement; bottom: SVGRectElement }>();
+    const pipeElems = new Map<
+        string,
+        { top: SVGRectElement; bottom: SVGRectElement }
+    >();
 
     const creatingPipePair = (id: string) => {
         const found = pipeElems.get(id);
         if (found) return found;
 
-        const top = createSvgElement(v.svg.namespaceURI, "rect", { fill: "green" }) as SVGRectElement;
-        const bottom = createSvgElement(v.svg.namespaceURI, "rect", { fill: "green" }) as SVGRectElement;
+        const top = createSvgElement(v.svg.namespaceURI, "rect", {
+            fill: "green",
+        }) as SVGRectElement;
+        const bottom = createSvgElement(v.svg.namespaceURI, "rect", {
+            fill: "green",
+        }) as SVGRectElement;
         pipesLayer.appendChild(top);
         pipesLayer.appendChild(bottom);
 
@@ -242,15 +251,21 @@ const render = (): ((s: State) => void) => {
             }
         }
     };
-    
 
     return (s: State) => {
-        const invincible = s.invincibleUntil !== undefined && s.time < s.invincibleUntil;
+        const invincible =
+            s.invincibleUntil !== undefined && s.time < s.invincibleUntil;
 
         v.birbImg.setAttribute("x", String(s.birb.birbX - Game.Birb.WIDTH / 2));
-        v.birbImg.setAttribute("y", String(s.birb.birbY - Game.Birb.HEIGHT / 2));
+        v.birbImg.setAttribute(
+            "y",
+            String(s.birb.birbY - Game.Birb.HEIGHT / 2),
+        );
 
-        v.birbImg.setAttribute("opacity", invincible ? ((Math.floor(s.time / 100) % 2) ? "0.4" : "1") : "1");
+        v.birbImg.setAttribute(
+            "opacity",
+            invincible ? (Math.floor(s.time / 100) % 2 ? "0.4" : "1") : "1",
+        );
 
         s.pipes.forEach(p => upsertPipe(p.id, p.x, p.gapY, p.gapH));
         removePipes(s.pipes.map(p => p.id));
@@ -267,22 +282,13 @@ const render = (): ((s: State) => void) => {
     };
 };
 
-
 export const state$ = (csvContents: string): Observable<State> => {
-    /** User input */
-
-    const key$ = fromEvent<KeyboardEvent>(document, "keypress");
-    const fromKey = (keyCode: Key) =>
-        key$.pipe(filter(({ code }) => code === keyCode));
-
-    /** Determines the rate of time steps */
-    const tick$ = interval(Game.Constants.TICK_RATE_MS);
 
     const rows = parseCsv(csvContents);
     const totalPipes = rows.length;
 
     const birdMovement$ = merge(jump$, gravity$, time$);
-    const pipeActions$  = makePipeActions$(rows);
+    const pipeActions$ = makePipeActions$(rows);
 
     const seed: State = initialState(
         performance.now(),
@@ -291,28 +297,35 @@ export const state$ = (csvContents: string): Observable<State> => {
         totalPipes,
     );
     return merge(birdMovement$, pipeActions$, tickPipes$).pipe(
-        startWith({apply: (s:State) => s} as Action),
-        scan(reduceState, seed)
-    )
+        startWith({ apply: (s: State) => s } as Action),
+        scan(reduceState, seed),
+    );
 };
 
 
 const parseCsv = (text: string): CsvRow[] =>
-    text.trim().split("\n").map(line => {
-        const [gap_y, gap_height, time] = line.split(",");
-        return { gap: Number(gap_y), height: Number(gap_height), delay: Number(time) };
-});
+    text
+        .trim()
+        .split("\n")
+        .map(line => {
+            const [gap_y, gap_height, time] = line.split(",");
+            return {
+                gap: Number(gap_y),
+                height: Number(gap_height),
+                delay: Number(time),
+            };
+        });
 
 const makePipeActions$ = (rows: CsvRow[]) => {
-    // const rows = parseCsv(csvContents);
     const toPx = (fraction: number) => fraction * Game.Viewport.CANVAS_HEIGHT;
     return from(rows).pipe(
         mergeMap(({ gap, height, delay }) =>
-        timer(delay * 1000).pipe(map(() => new CreatePipe(toPx(gap), toPx(height))))
-        )
+            timer(delay * 1000).pipe(
+                map(() => new CreatePipe(toPx(gap), toPx(height))),
+            ),
+        ),
     );
 };
-
 
 // The following simply runs your main function on window load.  Make sure to leave it in place.
 // You should not need to change this, beware if you are.
@@ -344,10 +357,8 @@ if (typeof window !== "undefined") {
             // On click - start the game
             click$.pipe(switchMap(() => state$(contents))),
         ),
-        takeWhile((s:State) => !s.gameEnd, true)
+        takeWhile((s: State) => !s.gameEnd, true),
     )
-    .pipe(
-        repeat()
-    )
-    .subscribe(render());
+        .pipe(repeat())
+        .subscribe(render());
 }
