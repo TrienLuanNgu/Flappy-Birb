@@ -48,12 +48,23 @@ import {
     Tick,
 } from "./state";
 
+/**
+ * This pure function creates the Birb (constructor for Birb), and initialize the Birb with the 
+ * values being passed in.
+ * 
+ * @param id The birb's id
+ * @param x The birb's starting X position
+ * @param y The birb's starting Y position
+ * @param createdAt The birb's create time
+ * @param lives The birb's number of lives
+ * @returns 
+ */
 function createBirb(
     id: string,
     x: number,
     y: number,
     createdAt: number,
-    lives = 3,
+    lives = Game.Birb.BIRB_LIVES,
 ): Body {
     return {
         id,
@@ -65,12 +76,14 @@ function createBirb(
     };
 }
 
-const initialState = (
-    t0: number,
-    canvasW: number,
-    canvasH: number,
-    noPipes: number,
-): State => ({
+/**
+ * This is a pure initial State factory
+ * @param t0 We pass t0 (performance.now()) from the call site to keep this pure
+ * @param canvasW 
+ * @param canvasH 
+ * @returns 
+ */
+const initialState = (t0: number, canvasW: number, canvasH: number): State => ({
     gameEnd: false,
     time: t0,
     pipes: [],
@@ -80,13 +93,6 @@ const initialState = (
     birb: createBirb("birb", canvasW * 0.3, canvasH / 2, t0),
 });
 
-/**
- * Updates the state by proceeding with one time step.
- *
- * @param s Current state
- * @returns Updated state
- */
-const tick = (s: State) => s;
 
 // Rendering (side effects)
 
@@ -116,11 +122,11 @@ const hide = (elem: SVGElement): void => {
 };
 
 /**
- *
+ * This is a generic, reusable HOF that turns a DOM key event into a typed stream of values
  * @param eventName
  * @param k
  * @param result
- * @returns
+ * @returns an Observable preserves purity until subscribed
  */
 const observeKey = <T>(eventName: Event, k: Key, result: () => T) =>
     fromEvent<KeyboardEvent>(document, eventName).pipe(
@@ -129,15 +135,27 @@ const observeKey = <T>(eventName: Event, k: Key, result: () => T) =>
         map(result),
     );
 
-const jump$ = observeKey("keydown", "Space", () => new Jump(10));
+/**
+ * This is an input stream (pure Producers of Actions)
+ * Using constants keeps magic numbers out of logic and supports difficulty tuning
+ */
+const jump$ = observeKey(
+    "keydown",
+    "Space",
+    () => new Jump(Game.Constants.JUMP_VELOCITY),
+);
+
+// Continuous gravity ticks at fixed cadence, pure Action objects
 const gravity$ = interval(Game.Constants.TICK_RATE_MS).pipe(
     map(() => new Gravity()),
 );
 
+// Pipe movement and scoring tick (separate from gravity for clarity)
 const tickPipes$ = interval(Game.Constants.TICK_RATE_MS).pipe(
     map(() => new TickPipes()),
 );
 
+// Logical time tick (advances s.time)
 const time$ = interval(Game.Constants.TICK_RATE_MS).pipe(map(() => new Tick()));
 
 /**
@@ -161,6 +179,11 @@ const createSvgElement = (
     return elem;
 };
 
+/**
+ * This function initial view creation.
+ * Kept separate from render loop so DOM nodes are created once 
+ * and updated thereafter (better performance & cleaner logic)
+ */
 const initView = (): View => {
     const svg = document.querySelector("#svgCanvas") as SVGSVGElement;
     svg.setAttribute(
@@ -180,6 +203,10 @@ const initView = (): View => {
     return { svg, birbImg };
 };
 
+/**
+ * 
+ * @returns The single effectful sink that observes State and mutates the DOM
+ */
 const render = (): ((s: State) => void) => {
     const v: View = initView();
 
@@ -190,9 +217,9 @@ const render = (): ((s: State) => void) => {
     // Text fields
     const livesText = document.querySelector("#livesText") as HTMLElement;
     const scoreText = document.querySelector("#scoreText") as HTMLElement;
-
     const gameOverText = gameOver.querySelector("text") as SVGTextElement;
 
+    // Dedicated layer for pipes to avoid z-index concerns
     const pipesLayer = createSvgElement(
         v.svg.namespaceURI,
         "g",
@@ -200,11 +227,13 @@ const render = (): ((s: State) => void) => {
     ) as SVGGElement;
     v.svg.appendChild(pipesLayer);
 
+    // Keep a map of pipe id -> rects so we can patch instead of recreate
     const pipeElems = new Map<
         string,
         { top: SVGRectElement; bottom: SVGRectElement }
     >();
 
+    /** Idempotent creator/upserter for a pipe's rect pair (top/bottom). */
     const creatingPipePair = (id: string) => {
         const found = pipeElems.get(id);
         if (found) return found;
@@ -223,6 +252,7 @@ const render = (): ((s: State) => void) => {
         return created;
     };
 
+    /** Pure geometry → attribute patching for a pipe at (x, gapY, gapH). */
     const upsertPipe = (id: string, x: number, gapY: number, gapH: number) => {
         const pair = creatingPipePair(id);
 
@@ -241,6 +271,10 @@ const render = (): ((s: State) => void) => {
         pair.bottom.setAttribute("height", String(bottomH));
     };
 
+    /**
+     * Remove any pipe DOM nodes that are no longer present in State.
+     * This keeps view in sync with model (functional “diffing” style).
+   */
     const removePipes = (id: readonly string[]) => {
         const inCanvas = new Set(id);
         for (const [id, pair] of pipeElems) {
@@ -256,12 +290,14 @@ const render = (): ((s: State) => void) => {
         const invincible =
             s.invincibleUntil !== undefined && s.time < s.invincibleUntil;
 
+        // Birb position
         v.birbImg.setAttribute("x", String(s.birb.birbX - Game.Birb.WIDTH / 2));
         v.birbImg.setAttribute(
             "y",
             String(s.birb.birbY - Game.Birb.HEIGHT / 2),
         );
 
+        // Flicker opacity while invincible
         v.birbImg.setAttribute(
             "opacity",
             invincible ? (Math.floor(s.time / 100) % 2 ? "0.4" : "1") : "1",
@@ -270,6 +306,7 @@ const render = (): ((s: State) => void) => {
         s.pipes.forEach(p => upsertPipe(p.id, p.x, p.gapY, p.gapH));
         removePipes(s.pipes.map(p => p.id));
 
+        // HUD fields
         livesText.textContent = String(s.birb.birbLive);
         scoreText.textContent = String(s.score);
         if (s.gameEnd) {
@@ -282,27 +319,36 @@ const render = (): ((s: State) => void) => {
     };
 };
 
+/**
+ * Build the State machine as an Observable by merging independent streams
+ * of Actions and folding them with the pure reducer (`reduceState`).
+ */
 export const state$ = (csvContents: string): Observable<State> => {
-
     const rows = parseCsv(csvContents);
-    const totalPipes = rows.length;
 
+    // Independent action streams:
+    // - bird movement intents and physics/time ticks
     const birdMovement$ = merge(jump$, gravity$, time$);
+
+    // - pipe creation intents (timed from CSV spec)
     const pipeActions$ = makePipeActions$(rows);
 
+    // Seed initial State deterministically
     const seed: State = initialState(
         performance.now(),
         Game.Viewport.CANVAS_WIDTH,
         Game.Viewport.CANVAS_HEIGHT,
-        totalPipes,
     );
+
+    // Merge all Actions and fold to State
     return merge(birdMovement$, pipeActions$, tickPipes$).pipe(
         startWith({ apply: (s: State) => s } as Action),
         scan(reduceState, seed),
     );
 };
 
-
+// Pure CSV → rows parse
+// Keeping this pure makes it easy to unit test
 const parseCsv = (text: string): CsvRow[] =>
     text
         .trim()
@@ -316,6 +362,10 @@ const parseCsv = (text: string): CsvRow[] =>
             };
         });
 
+/**
+ * Pure builder of a timed pipe-creation Action stream from row specs.
+ * Uses `mergeMap(timer)` so each row schedules its own CreatePipe event.
+ */
 const makePipeActions$ = (rows: CsvRow[]) => {
     const toPx = (fraction: number) => fraction * Game.Viewport.CANVAS_HEIGHT;
     return from(rows).pipe(

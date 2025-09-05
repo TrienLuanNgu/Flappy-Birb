@@ -12,15 +12,21 @@ const Viewport = {
 const Birb = {
     WIDTH: 42,
     HEIGHT: 30,
+    BIRB_LIVES: 3,
 } as const;
 
 // Game constants
 const Constants = {
     PIPE_WIDTH: 60,
     TICK_RATE_MS: 30,
+    JUMP_VELOCITY: 10,
     GRAVITY: 1.5, 
     MAX_FALL_RATE: 18,
     INVINCIBLE_MS: 1000,
+    BOUNCE_MIN: 6,
+    BOUNCE_MAX: 12,
+    PIPE_SPEED_PX_PER_MS: 0.12,
+    WIN_DELAY_MS: 2000,
 } as const;
 
 //INPUT TYPES

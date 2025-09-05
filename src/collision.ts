@@ -80,13 +80,11 @@ const handleCollisions = (s: State): State => {
      * This part handles if the Birb hit the top edge/top pipe it will bounce down, and vice versa
      */
     // Decide the bounce direction
-    const bounceMag = 6 + Math.random() * (12 - 6);
+    const bounceMag =
+        Game.Constants.BOUNCE_MIN +
+        ((s.time % 1000) / 1000) * (Game.Constants.BOUNCE_MAX - Game.Constants.BOUNCE_MIN);
     const bounceVy =
-        hitTopBound || hitTopPipe
-            ? +bounceMag
-            : hitBottomBound || hitBottomPipe
-              ? -bounceMag
-              : -bounceMag;
+        (hitTopBound || hitTopPipe) ? +bounceMag : -bounceMag;
 
     // If all the lives are gone, set gameEnd to true and stop the game, and set birbLive and birbVelocity to 0
     if (lives === 0) {
@@ -113,7 +111,7 @@ const handleCollisions = (s: State): State => {
             birbVelocity: bounceVy,
             birbY: newY,
         },
-        invincibleUntil: s.time + 1000,
+        invincibleUntil: s.time + Game.Constants.INVINCIBLE_MS,
         // don’t flip gameEnd here unless it was already set elsewhere
         gameEnd: s.gameEnd || dead,
         won: dead ? false : s.won,

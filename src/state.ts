@@ -89,11 +89,10 @@ class CreatePipe implements Action {
  * This class handles the moving of the Pipe, scoring of the Birb, and detecting victory
  */
 class TickPipes implements Action {
-    private readonly speedPxPerMs = 0.12;
     constructor(private readonly dtMs = Game.Constants.TICK_RATE_MS) {}
 
     apply(s: State): State {
-        const dx = this.speedPxPerMs * this.dtMs;
+        const dx = Game.Constants.PIPE_SPEED_PX_PER_MS * this.dtMs;
 
         // Move the pipes to the left by dx
         const moved = s.pipes.map(p => ({ ...p, x: p.x - dx }));
@@ -169,12 +168,9 @@ class TickPipes implements Action {
         // I could have ended the Game here, but I wanted the Birb to keep going for a bit longer and then the Game will stop
         const winStarted = allResolved && s.winAt === undefined;
 
-        // Delay before we actually stop (birb keeps flying)
-        const WIN_DELAY_MS = 2000;
-
         // If win timer already started, check whether to end now
         const endAfterWin =
-            s.winAt !== undefined && s.time - s.winAt >= WIN_DELAY_MS;
+            s.winAt !== undefined && s.time - s.winAt >= Game.Constants.WIN_DELAY_MS;
 
         return {
             ...s,
