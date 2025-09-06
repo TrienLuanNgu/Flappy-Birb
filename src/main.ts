@@ -64,6 +64,7 @@ import {
     GhostStore,
     initView,
     sampleGhost,
+    isGhostOn,
 } from "./view";
 
 // Rendering (side effects)
@@ -129,6 +130,13 @@ const tickPipes$ = interval(Game.Constants.TICK_RATE_MS).pipe(
 
 // Logical time tick (advances s.time)
 const time$ = interval(Game.Constants.TICK_RATE_MS).pipe(map(() => new Tick()));
+
+// Observable: wait for first user R
+const start$ = observeKey(
+    "keydown",
+    "KeyR",
+    () => true
+)
 
 /**
  * This is a render loop for the Game in each state
@@ -236,50 +244,70 @@ const render = (): ((s: State) => void) => {
             GhostStore.currentRecording = [];
             GhostStore.sprites = [];
 
-            // This part pushes the ghosts from the old run out 1 by 1 onto the canvas
-            GhostStore.sessionGhosts.forEach(() => {
-                GhostStore.sprites.push(createGhostSprite(v.svg));
-            });
-            /**
-             * For example after 2 runs
-             * sessionGhosts = [
-             *      [ {t:0,y:200}, {t:30,y:190}, ... ], // run 1
-             *      [ {t:0,y:220}, {t:30,y:215}, ... ]  // run 2
-             * ]
-             */
+            if (isGhostOn()) {
+                // If the isGhostOn is True then create/show ghost birbs
+                // This part pushes the ghosts from the old run out 1 by 1 onto the canvas
+                GhostStore.sessionGhosts.forEach(() => {
+                    GhostStore.sprites.push(createGhostSprite(v.svg));
+                });
+                /**
+                 * For example after 2 runs
+                 * sessionGhosts = [
+                 *      [ {t:0,y:200}, {t:30,y:190}, ... ], // run 1
+                 *      [ {t:0,y:220}, {t:30,y:215}, ... ]  // run 2
+                 * ]
+                 */
 
-            run.ghostsInitialised = true;
+                run.ghostsInitialised = true;
+            } else {
+                run.ghostsInitialised = false;
+            }
         }
 
         // This part records the current frame (elapsed t, y)
         const t = s.time - (run.t0 ?? s.time);
-        if (GhostStore.currentRecording) { // If the currentRecording is not null
+        if (GhostStore.currentRecording) {
+            // If the currentRecording is not null
             GhostStore.currentRecording.push({ t, y: s.birb.birbY }); // push in the time and Y position
         }
 
-        if ( // The condition checks if 
-            run.ghostsInitialised && // Ghosts were properly initialised at the start of the run
-            GhostStore.sprites.length === GhostStore.sessionGhosts.length // The number of ghost matches the number of stored ghost runs
-        ) {
-            // This loops over the past runs
-            GhostStore.sessionGhosts.forEach((path, i) => {
-                const node = GhostStore.sprites[i];
-                if (!node) return; // If the sprite doesn't exist (it was removed earlier) -> skip this run
-                                    // it could be the ghost has finished replaying and we marked it as null
+        if (isGhostOn()) {
+            if (
+                // The condition checks if
+                run.ghostsInitialised && // Ghosts were properly initialised at the start of the run
+                GhostStore.sprites.length === GhostStore.sessionGhosts.length // The number of ghost matches the number of stored ghost runs
+            ) {
+                // This loops over the past runs
+                GhostStore.sessionGhosts.forEach((path, i) => {
+                    const node = GhostStore.sprites[i];
+                    if (!node) return; // If the sprite doesn't exist (it was removed earlier) -> skip this run
+                    // it could be the ghost has finished replaying and we marked it as null
 
-                const endT = path.length ? path[path.length - 1].t : 0; // This finds the final timestamp of that ghost's recorded run
-                if (t > endT + 50) { // Check if the current game time t has gone beyond the end of that run + 50ms
-                    node.remove(); // We remove the ghost from the DOM
-                    GhostStore.sprites[i] = null; // mark removed by setting its sprite to null
-                    return;
-                }
+                    const endT = path.length ? path[path.length - 1].t : 0; // This finds the final timestamp of that ghost's recorded run
+                    if (t > endT + 50) {
+                        // Check if the current game time t has gone beyond the end of that run + 50ms
+                        node.remove(); // We remove the ghost from the DOM
+                        GhostStore.sprites[i] = null; // mark removed by setting its sprite to null
+                        return;
+                    }
 
-                const y = sampleGhost(path, t); // This searches through the recorded path and finds the correct Y pos for the current frame
-                if (y !== null) drawGhost(node, run.x0, y); //Finally, if a valid y position was found -> update the ghost sprite's coordinates
-            });
+                    const y = sampleGhost(path, t); // This searches through the recorded path and finds the correct Y pos for the current frame
+                    if (y !== null) drawGhost(node, run.x0, y); //Finally, if a valid y position was found -> update the ghost sprite's coordinates
+                });
+            }
+        } else {
+            // If the false, remove any currently displayed ghosts once
+            if (GhostStore.sprites.some(Boolean)) {
+                document
+                    .querySelectorAll<SVGGraphicsElement>("#svgCanvas .ghost")
+                    .forEach(n => n.remove());
+                GhostStore.sprites = [];
+                run.ghostsInitialised = false;
+            }
         }
 
-        if (s.gameEnd) { // If the gameEnd is true, this part is cleaning up and reseting the ghosts
+        if (s.gameEnd) {
+            // If the gameEnd is true, this part is cleaning up and reseting the ghosts
             if (
                 GhostStore.currentRecording && // If currentRecording is not null
                 GhostStore.currentRecording.length > 0 // Its length is > 0, means that the recording is valid
@@ -311,7 +339,7 @@ const render = (): ((s: State) => void) => {
             invincible ? (Math.floor(s.time / 100) % 2 ? "0.4" : "1") : "1",
         );
 
-        // This part loop through the array of pipe objects from the current game state and 
+        // This part loop through the array of pipe objects from the current game state and
         // updates or creates the corresponding SVG rectangles on the canvas for that pipe
         s.pipes.forEach(p => upsertPipe(p.id, p.x, p.gapY, p.gapH));
 
@@ -412,13 +440,10 @@ if (typeof window !== "undefined") {
         }),
     );
 
-    // Observable: wait for first user click
-    const click$ = fromEvent(document.body, "mousedown").pipe(take(1));
-
     csv$.pipe(
         switchMap(contents =>
-            // On click - start the game
-            click$.pipe(switchMap(() => state$(contents))),
+            // Press R - start the game
+            start$.pipe(switchMap(() => state$(contents))),
         ),
         takeWhile((s: State) => !s.gameEnd, true),
     )

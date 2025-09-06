@@ -8,6 +8,7 @@ export {
     createGhostSprite,
     drawGhost,
     sampleGhost,
+    isGhostOn,
 };
 /**
  * Creates an SVG element with the given properties.
@@ -60,11 +61,10 @@ const GhostStore = {
     sprites: [] as (SVGImageElement | null)[], // the actual DOM nodes drawn on screen to replay ghosts
 };
 
-
 /**
  * This function creates a visual for one ghost
  * The ghost is semi-transparent
- * @param svg 
+ * @param svg
  * @returns the element so the caller can position it and keep a reference in GhostStore.sprites[i]
  */
 function createGhostSprite(svg: SVGSVGElement): SVGImageElement {
@@ -82,13 +82,12 @@ function createGhostSprite(svg: SVGSVGElement): SVGImageElement {
     return img;
 }
 
-
 /**
  * This function positions a ghost image so that its center sits at (x, y)
  * We subtract half the width/height because SVG image x/y is the top-left corner (like the real birb)
- * @param g 
- * @param x 
- * @param y 
+ * @param g
+ * @param x
+ * @param y
  */
 function drawGhost(g: SVGImageElement, x: number, y: number) {
     g.setAttribute("x", String(x - Game.Birb.WIDTH / 2));
@@ -98,8 +97,8 @@ function drawGhost(g: SVGImageElement, x: number, y: number) {
 /**
  * This function find the last frame whose timestamp f.t is <= t
  * Given a path and elapsed time t (ms), return the y at or before t
- * @param path 
- * @param t 
+ * @param path
+ * @param t
  * @returns that frame's y so the ghost shows where the prior run's bird was at the same moment in its run
  */
 function sampleGhost(path: GhostFrame[], t: number): number | null {
@@ -107,3 +106,7 @@ function sampleGhost(path: GhostFrame[], t: number): number | null {
     const idx = path.reduce((acc, f, i) => (f.t <= t ? i : acc), -1);
     return idx >= 0 ? path[idx].y : path[0].y;
 }
+
+const isGhostOn = (): boolean =>
+    (document.getElementById("ghostToggle") as HTMLInputElement)?.checked ??
+    true;
