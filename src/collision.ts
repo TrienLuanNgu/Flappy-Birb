@@ -112,7 +112,7 @@ const handleCollisions = (s: State): State => {
             birbY: newY,
         },
         invincibleUntil: s.time + Game.Constants.INVINCIBLE_MS,
-        // don’t flip gameEnd here unless it was already set elsewhere
+        // don't flip gameEnd here unless it was already set elsewhere
         gameEnd: s.gameEnd || dead,
         won: dead ? false : s.won,
         winAt: dead ? undefined : s.winAt,

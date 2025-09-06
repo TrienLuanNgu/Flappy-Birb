@@ -33,7 +33,7 @@ const createSvgElement = (
 /**
  * This function initial view creation.
  * Kept separate from render loop so DOM nodes are created once
- * and updated thereafter (better performance & cleaner logic)
+ * and updated thereafter (better performance and cleaner logic)
  */
 const initView = (): View => {
     const svg = document.querySelector("#svgCanvas") as SVGSVGElement;
@@ -55,18 +55,23 @@ const initView = (): View => {
 };
 
 const GhostStore = {
-    sessionGhosts: [] as GhostFrame[][], // all previous runs
-    currentRecording: null as GhostFrame[] | null, // frames of this run
-    sprites: [] as (SVGImageElement | null)[], // DOM nodes for this run's ghosts
+    sessionGhosts: [] as GhostFrame[][], // an array of all previous runs
+    currentRecording: null as GhostFrame[] | null, // the frames for the run that’s currently happening
+    sprites: [] as (SVGImageElement | null)[], // the actual DOM nodes drawn on screen to replay ghosts
 };
 
-// Create a ghost sprite as an <image> (same art as the real birb)
+
+/**
+ * This function creates a visual for one ghost
+ * The ghost is semi-transparent
+ * @param svg 
+ * @returns the element so the caller can position it and keep a reference in GhostStore.sprites[i]
+ */
 function createGhostSprite(svg: SVGSVGElement): SVGImageElement {
     const img = document.createElementNS(
         svg.namespaceURI,
         "image",
     ) as SVGImageElement;
-    // SVG2 uses plain 'href' (no xlink)
     img.setAttribute("href", "assets/birb.png");
     img.setAttribute("width", String(Game.Birb.WIDTH));
     img.setAttribute("height", String(Game.Birb.HEIGHT));
@@ -77,16 +82,28 @@ function createGhostSprite(svg: SVGSVGElement): SVGImageElement {
     return img;
 }
 
-// Center like your real bird
+
+/**
+ * This function positions a ghost image so that its center sits at (x, y)
+ * We subtract half the width/height because SVG image x/y is the top-left corner (like the real birb)
+ * @param g 
+ * @param x 
+ * @param y 
+ */
 function drawGhost(g: SVGImageElement, x: number, y: number) {
     g.setAttribute("x", String(x - Game.Birb.WIDTH / 2));
     g.setAttribute("y", String(y - Game.Birb.HEIGHT / 2));
 }
 
-// Given a path and elapsed time t (ms), return the y at or before t
+/**
+ * This function find the last frame whose timestamp f.t is <= t
+ * Given a path and elapsed time t (ms), return the y at or before t
+ * @param path 
+ * @param t 
+ * @returns that frame's y so the ghost shows where the prior run's bird was at the same moment in its run
+ */
 function sampleGhost(path: GhostFrame[], t: number): number | null {
     if (path.length === 0) return null;
-    // index of the last frame with time <= t, no `let`
     const idx = path.reduce((acc, f, i) => (f.t <= t ? i : acc), -1);
     return idx >= 0 ? path[idx].y : path[0].y;
 }

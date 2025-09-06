@@ -1,5 +1,16 @@
-export {Constants, Birb, Viewport}
-export type { Key, Event, State, Action, Body, View, CsvRow, Pipe, Rect };
+export { Constants, Birb, Viewport };
+export type {
+    Key,
+    Event,
+    State,
+    Action,
+    Body,
+    View,
+    CsvRow,
+    Pipe,
+    Rect,
+    GhostFrame,
+};
 
 //CONSTANTS
 // The overall dimensions of the SVG canvas
@@ -20,7 +31,7 @@ const Constants = {
     PIPE_WIDTH: 60,
     TICK_RATE_MS: 30,
     JUMP_VELOCITY: 10,
-    GRAVITY: 1.5, 
+    GRAVITY: 1.5,
     MAX_FALL_RATE: 18,
     INVINCIBLE_MS: 1000,
     BOUNCE_MIN: 6,
@@ -34,16 +45,16 @@ const Constants = {
 type Key = "Space" | "KeyR";
 
 // DOM events captured from the keyboard
-type Event = 'keydown' | 'keyup';
+type Event = "keydown" | "keyup";
 
 // Geometry Types
 // A rectangle, used for collision detection
-type Rect = Readonly<{ 
+type Rect = Readonly<{
     x: number,
-    y: number, 
+    y: number,
     w: number,
     h: number,
-}>
+}>;
 
 // Game Entities
 // Stores the Birb position, velocity, remaining lives, and creation time
@@ -54,7 +65,7 @@ type Body = Readonly<{
     birbVelocity: number,
     birbLive: number,
     createTime: number,
-}>
+}>;
 
 // A pipe with a vertical gap
 // The `passed` attribute indicates whether the bird has successfully flown through it
@@ -65,7 +76,7 @@ type Pipe = Readonly<{
     gapH: number,
     createTime: number,
     passed: boolean,
-}>
+}>;
 
 // Game State
 // The immutable game state tracked on each tick
@@ -82,22 +93,27 @@ type State = Readonly<{
     winAt?: number,
 }>;
 
-// Render/View
 // References to the SVG DOM elements needed for rendering
 type View = Readonly<{
     svg: SVGSVGElement,
     birbImg: SVGImageElement,
-}>
+}>;
 
 // Shape of each row from the input CSV
-type CsvRow = { 
+type CsvRow = {
     gap: number,
     height: number,
-    delay: number 
+    delay: number,
 };
+
+// Snapshot of the birb's Y pos at a specific time
+type GhostFrame = Readonly<{ 
+    t: number,
+    y: number,
+}>;
 
 // Action interface
 //  This handle user input, collisions
-interface Action{
-    apply(s:State): State,
+interface Action {
+    apply(s: State): State;
 }

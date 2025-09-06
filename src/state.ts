@@ -1,8 +1,17 @@
 import * as Game from "./type";
-import { Key, Event, State, Action } from "./type";
+import { Key, Event, State, Action, Body } from "./type";
 import { handleCollisions } from "./collision";
 
-export { Jump, reduceState, Gravity, CreatePipe, TickPipes, Tick };
+export {
+    Jump,
+    reduceState,
+    Gravity,
+    CreatePipe,
+    TickPipes,
+    Tick,
+    createBirb,
+    initialState,
+};
 
 /**
  * This class Purely bumps the time forward by dt milliseconds
@@ -29,6 +38,51 @@ class Jump implements Action {
         };
     }
 }
+
+/**
+ * This pure function creates the Birb (constructor for Birb), and initialize the Birb with the
+ * values being passed in.
+ *
+ * @param id The birb's id
+ * @param x The birb's starting X position
+ * @param y The birb's starting Y position
+ * @param createdAt The birb's create time
+ * @param lives The birb's number of lives
+ * @returns
+ */
+function createBirb(
+    id: string,
+    x: number,
+    y: number,
+    createdAt: number,
+    lives = Game.Birb.BIRB_LIVES,
+): Body {
+    return {
+        id,
+        birbX: x,
+        birbY: y,
+        birbVelocity: 0,
+        birbLive: lives,
+        createTime: createdAt,
+    };
+}
+
+/**
+ * This is a pure initial State factory
+ * @param t0 We pass t0 (performance.now()) from the call site to keep this pure
+ * @param canvasW
+ * @param canvasH
+ * @returns
+ */
+const initialState = (t0: number, canvasW: number, canvasH: number): State => ({
+    gameEnd: false,
+    time: t0,
+    pipes: [],
+    exit: [],
+    objCount: 0,
+    score: 0,
+    birb: createBirb("birb", canvasW * 0.3, canvasH / 2, t0),
+});
 
 /**
  * This class adds Gravity to the birb velocity (which is just changing the velocity)
@@ -119,8 +173,8 @@ class TickPipes implements Action {
         // This is the logic for when the Birb crossed the edge and score
         const { pipes: updated, gained } = kept.reduce(
             (acc, p) => {
-                const currRight = p.x + Game.Constants.PIPE_WIDTH;  // after move
-                const prevRight = currRight + dx;                   // before move
+                const currRight = p.x + Game.Constants.PIPE_WIDTH; // after move
+                const prevRight = currRight + dx; // before move
 
                 // true exactly on the tick where the right edge crosses the bird's x
                 const crossedNow = prevRight >= birdX && currRight < birdX;
@@ -135,7 +189,6 @@ class TickPipes implements Action {
                 // If true, the Pipe's passed will be set to TRUE, else nothing will change
                 const nextP = scoredNow ? { ...p, passed: true } : p;
 
-                
                 return {
                     // Keep building a new pipes array and a running gained total
                     pipes: [...acc.pipes, nextP],
@@ -170,7 +223,8 @@ class TickPipes implements Action {
 
         // If win timer already started, check whether to end now
         const endAfterWin =
-            s.winAt !== undefined && s.time - s.winAt >= Game.Constants.WIN_DELAY_MS;
+            s.winAt !== undefined &&
+            s.time - s.winAt >= Game.Constants.WIN_DELAY_MS;
 
         return {
             ...s,
@@ -186,12 +240,12 @@ class TickPipes implements Action {
 
 /**
  * This function is a reducer, it applies the action to produce a state, then immediately run handleCollisions which:
-    * Deducts a life if you hit something
-    * Applies a bounce + sets invincibleUntil
-    * Ends the game if lives hit zero
- * @param s 
- * @param action 
- * @returns 
+ * Deducts a life if you hit something
+ * Applies a bounce + sets invincibleUntil
+ * Ends the game if lives hit zero
+ * @param s
+ * @param action
+ * @returns
  */
 const reduceState = (s: State, action: Action) =>
     handleCollisions(action.apply(s));

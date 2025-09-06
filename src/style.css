@@ -1,5 +1,4 @@
 :root {
-    /* background-color: #a1a1a1; */
     background-image: url("assets/bigbackground.png");
     background-size: cover;
     background-position: center;
@@ -75,11 +74,10 @@ svg rect {
 }
 
 #svgCanvas {
-    /* background-color: rgb(154, 154, 154); */
     background-image: url("assets/background.png");
     background-size: cover;
     background-position: center;
-}
+} 
 
 #info {
     width: 160px;

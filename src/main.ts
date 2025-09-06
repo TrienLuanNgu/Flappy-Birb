@@ -38,7 +38,16 @@ import {
 import { fromFetch } from "rxjs/fetch";
 
 import * as Game from "./type";
-import type { Key, Event, State, Action, Body, View, CsvRow } from "./type";
+import type {
+    Key,
+    Event,
+    State,
+    Action,
+    Body,
+    View,
+    CsvRow,
+    GhostFrame,
+} from "./type";
 import {
     Jump,
     reduceState,
@@ -46,53 +55,16 @@ import {
     CreatePipe,
     TickPipes,
     Tick,
+    initialState,
 } from "./state";
-
-/**
- * This pure function creates the Birb (constructor for Birb), and initialize the Birb with the 
- * values being passed in.
- * 
- * @param id The birb's id
- * @param x The birb's starting X position
- * @param y The birb's starting Y position
- * @param createdAt The birb's create time
- * @param lives The birb's number of lives
- * @returns 
- */
-function createBirb(
-    id: string,
-    x: number,
-    y: number,
-    createdAt: number,
-    lives = Game.Birb.BIRB_LIVES,
-): Body {
-    return {
-        id,
-        birbX: x,
-        birbY: y,
-        birbVelocity: 0,
-        birbLive: lives,
-        createTime: createdAt,
-    };
-}
-
-/**
- * This is a pure initial State factory
- * @param t0 We pass t0 (performance.now()) from the call site to keep this pure
- * @param canvasW 
- * @param canvasH 
- * @returns 
- */
-const initialState = (t0: number, canvasW: number, canvasH: number): State => ({
-    gameEnd: false,
-    time: t0,
-    pipes: [],
-    exit: [],
-    objCount: 0,
-    score: 0,
-    birb: createBirb("birb", canvasW * 0.3, canvasH / 2, t0),
-});
-
+import {
+    createGhostSprite,
+    createSvgElement,
+    drawGhost,
+    GhostStore,
+    initView,
+    sampleGhost,
+} from "./view";
 
 // Rendering (side effects)
 
@@ -159,56 +131,21 @@ const tickPipes$ = interval(Game.Constants.TICK_RATE_MS).pipe(
 const time$ = interval(Game.Constants.TICK_RATE_MS).pipe(map(() => new Tick()));
 
 /**
- * Creates an SVG element with the given properties.
- *
- * See https://developer.mozilla.org/en-US/docs/Web/SVG/Element for valid
- * element names and properties.
- *
- * @param namespace Namespace of the SVG element
- * @param name SVGElement name
- * @param props Properties to set on the SVG element
- * @returns SVG element
- */
-const createSvgElement = (
-    namespace: string | null,
-    name: string,
-    props: Record<string, string> = {},
-): SVGElement => {
-    const elem = document.createElementNS(namespace, name) as SVGElement;
-    Object.entries(props).forEach(([k, v]) => elem.setAttribute(k, v));
-    return elem;
-};
-
-/**
- * This function initial view creation.
- * Kept separate from render loop so DOM nodes are created once 
- * and updated thereafter (better performance & cleaner logic)
- */
-const initView = (): View => {
-    const svg = document.querySelector("#svgCanvas") as SVGSVGElement;
-    svg.setAttribute(
-        "viewBox",
-        `0 0 ${Game.Viewport.CANVAS_WIDTH} ${Game.Viewport.CANVAS_HEIGHT}`,
-    );
-
-    const birbImg = createSvgElement(svg.namespaceURI, "image", {
-        href: "assets/birb.png",
-        width: String(Game.Birb.WIDTH),
-        height: String(Game.Birb.HEIGHT),
-        x: String(Game.Viewport.CANVAS_WIDTH * 0.3 - Game.Birb.WIDTH / 2),
-        y: String(Game.Viewport.CANVAS_HEIGHT / 2 - Game.Birb.HEIGHT / 2),
-    }) as SVGImageElement;
-
-    svg.appendChild(birbImg);
-    return { svg, birbImg };
-};
-
-/**
- * 
+ * This is a render loop for the Game in each state
  * @returns The single effectful sink that observes State and mutates the DOM
  */
 const render = (): ((s: State) => void) => {
     const v: View = initView();
+
+    document // This part clears out all ghost bird elements currently on the canvas -> so the new run can starts clean
+        .querySelectorAll<SVGGraphicsElement>("#svgCanvas .ghost")
+        .forEach(n => n.remove());
+
+    const run = {
+        t0: null as number | null, // first state.time in this run
+        x0: Game.Viewport.CANVAS_WIDTH * 0.3, // birb X used for ghosts
+        ghostsInitialised: false,
+    };
 
     // Canvas elements
     const gameOver = document.querySelector("#gameOver") as SVGElement;
@@ -233,7 +170,7 @@ const render = (): ((s: State) => void) => {
         { top: SVGRectElement; bottom: SVGRectElement }
     >();
 
-    /** Idempotent creator/upserter for a pipe's rect pair (top/bottom). */
+    // Idempotent creator/upserter for a pipe's rect pair (top/bottom).
     const creatingPipePair = (id: string) => {
         const found = pipeElems.get(id);
         if (found) return found;
@@ -252,7 +189,7 @@ const render = (): ((s: State) => void) => {
         return created;
     };
 
-    /** Pure geometry → attribute patching for a pipe at (x, gapY, gapH). */
+    // This part is pure geometry -> attribute patching for a pipe at (x, gapY, gapH).
     const upsertPipe = (id: string, x: number, gapY: number, gapH: number) => {
         const pair = creatingPipePair(id);
 
@@ -274,7 +211,7 @@ const render = (): ((s: State) => void) => {
     /**
      * Remove any pipe DOM nodes that are no longer present in State.
      * This keeps view in sync with model (functional “diffing” style).
-   */
+     */
     const removePipes = (id: readonly string[]) => {
         const inCanvas = new Set(id);
         for (const [id, pair] of pipeElems) {
@@ -287,6 +224,77 @@ const render = (): ((s: State) => void) => {
     };
 
     return (s: State) => {
+        if (run.t0 === null) {
+            run.t0 = s.time;
+            run.x0 = s.birb.birbX;
+
+            // clear any previous ghost nodes
+            document
+                .querySelectorAll<SVGGraphicsElement>("#svgCanvas .ghost")
+                .forEach(n => n.remove());
+
+            GhostStore.currentRecording = [];
+            GhostStore.sprites = [];
+
+            // This part pushes the ghosts from the old run out 1 by 1 onto the canvas
+            GhostStore.sessionGhosts.forEach(() => {
+                GhostStore.sprites.push(createGhostSprite(v.svg));
+            });
+            /**
+             * For example after 2 runs
+             * sessionGhosts = [
+             *      [ {t:0,y:200}, {t:30,y:190}, ... ], // run 1
+             *      [ {t:0,y:220}, {t:30,y:215}, ... ]  // run 2
+             * ]
+             */
+
+            run.ghostsInitialised = true;
+        }
+
+        // This part records the current frame (elapsed t, y)
+        const t = s.time - (run.t0 ?? s.time);
+        if (GhostStore.currentRecording) { // If the currentRecording is not null
+            GhostStore.currentRecording.push({ t, y: s.birb.birbY }); // push in the time and Y position
+        }
+
+        if ( // The condition checks if 
+            run.ghostsInitialised && // Ghosts were properly initialised at the start of the run
+            GhostStore.sprites.length === GhostStore.sessionGhosts.length // The number of ghost matches the number of stored ghost runs
+        ) {
+            // This loops over the past runs
+            GhostStore.sessionGhosts.forEach((path, i) => {
+                const node = GhostStore.sprites[i];
+                if (!node) return; // If the sprite doesn't exist (it was removed earlier) -> skip this run
+                                    // it could be the ghost has finished replaying and we marked it as null
+
+                const endT = path.length ? path[path.length - 1].t : 0; // This finds the final timestamp of that ghost's recorded run
+                if (t > endT + 50) { // Check if the current game time t has gone beyond the end of that run + 50ms
+                    node.remove(); // We remove the ghost from the DOM
+                    GhostStore.sprites[i] = null; // mark removed by setting its sprite to null
+                    return;
+                }
+
+                const y = sampleGhost(path, t); // This searches through the recorded path and finds the correct Y pos for the current frame
+                if (y !== null) drawGhost(node, run.x0, y); //Finally, if a valid y position was found -> update the ghost sprite's coordinates
+            });
+        }
+
+        if (s.gameEnd) { // If the gameEnd is true, this part is cleaning up and reseting the ghosts
+            if (
+                GhostStore.currentRecording && // If currentRecording is not null
+                GhostStore.currentRecording.length > 0 // Its length is > 0, means that the recording is valid
+            ) {
+                GhostStore.sessionGhosts.push(GhostStore.currentRecording); // Push it into the sessionGhost array
+            }
+            GhostStore.currentRecording = null; // The nset it to null, so a new recoding can be added in the future
+
+            // Reset run markers so next run re-initialises
+            run.t0 = null;
+            run.ghostsInitialised = false;
+            // run.x0 recomputed on next first frame
+        }
+
+        // See if the birb is invincible or not
         const invincible =
             s.invincibleUntil !== undefined && s.time < s.invincibleUntil;
 
@@ -303,7 +311,12 @@ const render = (): ((s: State) => void) => {
             invincible ? (Math.floor(s.time / 100) % 2 ? "0.4" : "1") : "1",
         );
 
+        // This part loop through the array of pipe objects from the current game state and 
+        // updates or creates the corresponding SVG rectangles on the canvas for that pipe
         s.pipes.forEach(p => upsertPipe(p.id, p.x, p.gapY, p.gapH));
+
+        // The map() part builds a list of all pipe ID that still exist in the current frame
+        // and the remove() deletes any pipe DOM nodes that are not in that list anymore
         removePipes(s.pipes.map(p => p.id));
 
         // HUD fields
