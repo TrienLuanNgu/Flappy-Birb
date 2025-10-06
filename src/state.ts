@@ -234,6 +234,7 @@ class TickPipes implements Action {
             winAt: winStarted ? s.time : s.winAt,
             won: winStarted ? true : s.won,
             gameEnd: s.gameEnd || endAfterWin,
+            
         };
     }
 }
