@@ -444,6 +444,7 @@ if (typeof window !== "undefined") {
         switchMap(contents =>
             // Press R - start the game
             start$.pipe(switchMap(() => state$(contents))),
+            
         ),
         takeWhile((s: State) => !s.gameEnd, true),
     )
