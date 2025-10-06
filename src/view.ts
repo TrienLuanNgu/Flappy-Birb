@@ -1,5 +1,6 @@
 import { View, GhostFrame } from "./type";
 import * as Game from "./type";
+import birbPng from '../assets/birb.png';
 
 export {
     createSvgElement,
@@ -44,7 +45,7 @@ const initView = (): View => {
     );
 
     const birbImg = createSvgElement(svg.namespaceURI, "image", {
-        href: "assets/birb.png",
+        href: birbPng,
         width: String(Game.Birb.WIDTH),
         height: String(Game.Birb.HEIGHT),
         x: String(Game.Viewport.CANVAS_WIDTH * 0.3 - Game.Birb.WIDTH / 2),
@@ -72,7 +73,7 @@ function createGhostSprite(svg: SVGSVGElement): SVGImageElement {
         svg.namespaceURI,
         "image",
     ) as SVGImageElement;
-    img.setAttribute("href", "assets/birb.png");
+    img.setAttribute("href", birbPng);
     img.setAttribute("width", String(Game.Birb.WIDTH));
     img.setAttribute("height", String(Game.Birb.HEIGHT));
     img.setAttribute("opacity", "0.45"); // semi-transparent
