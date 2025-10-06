@@ -3,5 +3,5 @@ import { defineConfig } from "vite";
 
 export default defineConfig({
     plugins: [pluginChecker({ typescript: true, overlay: false })],
-    base: '/Flappy-Birb/'
+    base: '/Flappy-Birb/',
 });
