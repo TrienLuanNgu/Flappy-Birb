@@ -420,10 +420,9 @@ const makePipeActions$ = (rows: CsvRow[]) => {
 
 // The following simply runs your main function on window load.  Make sure to leave it in place.
 // You should not need to change this, beware if you are.
-if (typeof window !== "undefined") {
-    const { protocol, hostname, port } = new URL(import.meta.url);
-    const baseUrl = `${protocol}//${hostname}${port ? `:${port}` : ""}`;
-    const csvUrl = `${baseUrl}/assets/map.csv`;
+  if (typeof window !== "undefined") {
+    // Resolve the CSV via Vite so it works in dev and on GitHub Pages
+    const csvUrl = new URL("../assets/map.csv", import.meta.url).href;
 
     // Get the file from URL
     const csv$ = fromFetch(csvUrl).pipe(
